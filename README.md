@@ -33,9 +33,12 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-
 
 # 或显式指定目标项目路径
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.sh)" _ /path/to/your/project
+
+# 国内网络若 raw.githubusercontent.com 被墙/超时，改用 jsDelivr 镜像取脚本（同样会从 GitHub 拉 tarball）：
+bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@main/scripts/install.sh)"
 ```
 
-脚本会自动从 GitHub 下载 tarball 到临时目录并复制，装完即清理，本地无需保留仓库。
+脚本会自动从 GitHub 下载 tarball 到临时目录并复制，装完即清理，本地无需保留仓库。jsDelivr 对 `@main` 有缓存（一般几分钟到数小时），打了 tag 后建议改用 `@v1.0.0` 更稳。
 
 > ⚠️ **安全提示**：`curl | bash` 会直接执行远端脚本，请确认来源可信。想先审查，可先 `git clone` 查看 `scripts/install.sh` 源码再决定是否运行。
 >
