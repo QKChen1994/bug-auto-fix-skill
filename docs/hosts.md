@@ -9,17 +9,18 @@
 |---|---|---|---|
 | CodeBuddy | `.codebuddy/skills/<name>/SKILL.md` | 项目 `.mcp.json` 或客户端设置；`zentao-mcp-installer` 支持 | ✅ 一等 |
 | Claude Code | `.claude/skills/<name>/SKILL.md` | 项目 `.mcp.json`；`zentao-mcp-installer` 支持 | ✅ 一等 |
-| Cursor | `.cursor/rules` 或 MCP 设置 | `.mcp.json` / `zentao-mcp-installer` | ✅ 一等 |
+| Cursor | `.cursor/skills/<name>/SKILL.md` 或 MCP 设置 | `.mcp.json` / `zentao-mcp-installer` | ✅ 一等 |
 | Windsurf | 对应 MCP 设置 | `.mcp.json` / `zentao-mcp-installer` | ✅ 一等 |
+| Trae | `.trae/skills/<name>/SKILL.md` | 设置 → MCP 粘贴 `.mcp.json` | ✅ 一等（已核实） |
+| Qoder | `.qoder/skills/<name>/SKILL.md` | 设置 → MCP 添加（`mcpServers` JSON） | ✅ 一等（已核实） |
 | Codex CLI | 无原生 SKILL.md，用 `AGENTS.md` 注入（见下） | `codex mcp` 或 `zentao-mcp-installer`（支持 Codex CLI） | ⚠️ 适配 |
-| Trae | `.trae/skills/<name>/SKILL.md`（推测，按客户端实际） | 设置 → MCP 粘贴 `.mcp.json` | ⚠️ 尽力 |
-| Qoder | `.qoder/skills/<name>/SKILL.md`（推测，按客户端实际） | 设置 → MCP 粘贴 `.mcp.json` | ⚠️ 尽力 |
 
-安装脚本 `scripts/install.sh` 会按上面顺序探测宿主并复制 skill。
+> Trae / Qoder 均已官方确认采用 Claude 风格 `.skills/<name>/SKILL.md` + `mcpServers` JSON，
+> 与本项目完全兼容，无需特殊处理。安装脚本 `scripts/install.sh` 会按宿主探测并复制 skill。
 
 ## Codex CLI 适配
 Codex 没有 Claude 风格的 `SKILL.md` 自动加载机制，建议：
-1. 把本仓库 `skills/` 下三个 SKILL.md 的内容合并或引用进项目根 `AGENTS.md`，
+1. 把 `examples/AGENTS.md` 复制到目标项目根并命名为 `AGENTS.md`，
    让 Codex 在会话开始时读到这三段「命令说明」。
 2. MCP：运行 `npx -y zentao-mcp-installer`（官方安装器已支持 Codex CLI），
    或手动在 Codex 的 MCP 配置里加入 `examples/.mcp.json` 的 `zentao` 条目。
