@@ -13,13 +13,59 @@ AI 编码 agent skill，支持 CodeBuddy / Claude Code / Cursor / Windsurf / Cod
 | `/zentao-config` | 设置要处理的禅道维度(`scope`+`scope_id`)与指派人(`assigned_to`)，及可选 `test_cmd`/`build_cmd`/`commit_prefix`，存到 `.zentao-triage/user-config.md`（不提交） |
 | `/zentao-bugfix` | 预检后拉取 active bug，按配置逐条修复；开局确认是否全自动，非自动则每个 bug 人工确认 |
 
-## 快速开始
+## 安装
+
+本 skill 是一组纯 Markdown 的 `SKILL.md` 运行手册，安装本质就是把这三个文件复制到目标项目的宿主 `skills/` 目录，并确保用户本地配置被 gitignore。
+
+### 方式 A：克隆后本地安装（推荐，方便后续更新）
 
 ```bash
-# 1) 把 skill 装进你的项目（会按宿主探测并复制）
-bash scripts/install.sh /path/to/your/project
+git clone https://github.com/QKChen1994/bug-auto-fix-skill.git
+# 把三个 skill 复制到目标项目的宿主 skills 目录（自动探测 CodeBuddy/Claude/Cursor/Trae/Qoder/Codex）
+bash bug-auto-fix-skill/scripts/install.sh /path/to/your/project
+```
 
-# 2) 在你的 AI 客户端里依次运行
+### 方式 B：一行 curl 安装（无需克隆）
+
+```bash
+# cd 进你的项目根目录后执行，默认装到当前目录
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.sh)"
+
+# 或显式指定目标项目路径
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.sh)" _ /path/to/your/project
+```
+
+脚本会自动从 GitHub 下载 tarball 到临时目录并复制，装完即清理，本地无需保留仓库。
+
+> ⚠️ **安全提示**：`curl | bash` 会直接执行远端脚本，请确认来源可信。想先审查，可先 `git clone` 查看 `scripts/install.sh` 源码再决定是否运行。
+>
+> 使用 **fork / 镜像仓库**时，可用环境变量指定自己的源（覆盖默认仓库与分支）：
+> ```bash
+> # 方式 1：只改 owner/repo（分支默认 main，可用 BUG_AUTO_FIX_BRANCH 指定）
+> BUG_AUTO_FIX_REPO=yourfork/bug-auto-fix-skill \
+>   bash -c "$(curl -fsSL https://raw.githubusercontent.com/yourfork/bug-auto-fix-skill/main/scripts/install.sh)"
+>
+> # 方式 2：直接给完整 tarball 地址（优先级最高）
+> BUG_AUTO_FIX_TARBALL=https://github.com/yourfork/bug-auto-fix-skill/archive/refs/heads/main.tar.gz \
+>   bash -c "$(curl -fsSL https://raw.githubusercontent.com/yourfork/bug-auto-fix-skill/main/scripts/install.sh)"
+> ```
+
+`install.sh` 会做三件事：
+- 探测目标项目的宿主（看是否存在 `.codebuddy` / `.claude` / `.trae` / `.qoder` 等目录），找不到则默认按 Claude Code 布局；
+- 把 `skills/{zentao-init,zentao-config,zentao-bugfix}/SKILL.md` 复制到 `<项目根>/<宿主>/skills/<name>/SKILL.md`；
+- 若目标项目 `.gitignore` 未忽略 `.zentao-triage/`，则自动追加忽略项（用户配置不进库）。
+
+> 各宿主具体的 skill 注入位置与 MCP 配置方式，见 [`docs/hosts.md`](docs/hosts.md)。
+
+### 3) 重启 / 刷新 AI 客户端
+
+安装后**重启或刷新你的 AI 客户端**，让新复制的 skill 与下面第 2 步生成的 MCP 工具生效。
+
+## 快速开始（使用）
+
+在 AI 客户端里依次运行三条命令：
+
+```bash
 /zentao-init      # 装 MCP + 填凭据（需重启客户端让工具生效）
 /zentao-config    # 设产品/项目与指派人
 /zentao-bugfix    # 拉 bug 自动/半自动修复
