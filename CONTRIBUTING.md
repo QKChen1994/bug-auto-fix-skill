@@ -3,7 +3,7 @@
 感谢参与 `bugAutoFixSkill`！本仓库是**与宿主无关的禅道 Bug 自动修复 skill 集合**。
 
 ## 仓库结构约定
-- `skills/<name>/SKILL.md`：每个真实 skill 一个目录，目录名即调用名（如 `zentao-init`）。
+- `skills/<name>/SKILL.md`：每个真实 skill 一个目录，目录名即调用名（如 `bugfix-init`）。
 - `examples/`：模板文件（`AGENTS.md` / `.mcp.json` / `user-config.example.md`），**可直接复制使用**。
 - `scripts/`：安装与校验脚本。
 - `docs/`：宿主适配说明。
@@ -16,7 +16,7 @@
 2. 正文是与宿主无关的**纯指令**（只依赖 `zentao_*` MCP 工具与 `git`）。
 3. **绝不**在 skill 内写死凭据（URL/账号/密码）或用户私有配置。
    - 凭据只在 `.mcp.json`（git 忽略）。
-   - 用户配置由 `zentao-config` 写到 `.zentao-triage/user-config.md`（git 忽略）。
+   - 用户配置由 `bugfix-config` 写到 `.zentao-triage/user-config.md`（git 忽略）。
 
 ## 行为纪律（务必遵守）
 - 只有 `fixed` 且通过验证闸门（`test_cmd` / `build_cmd` / 人工确认）才允许 `resolve(fixed)`；

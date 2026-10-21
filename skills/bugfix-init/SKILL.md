@@ -1,10 +1,10 @@
 ---
-name: zentao-init
+name: bugfix-init
 version: 1.0.0
 description: 初始化禅道 MCP 连接——检测是否已安装 zentao MCP server，未安装则安装并引导配置 ZENTAO_BASE_URL / 账号 / 密码，并开启 ZENTAO_ALLOW_RESOLVE_BUG。
 ---
 
-# zentao-init：安装并配置禅道 MCP
+# bugfix-init：安装并配置禅道 MCP
 
 目标：让当前 AI 编码 agent 能用 `zentao_*` 工具读写禅道。
 

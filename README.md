@@ -9,9 +9,9 @@ AI 编码 agent skill，支持 CodeBuddy / Claude Code / Cursor / Windsurf / Cod
 
 | 命令 | 作用 |
 |---|---|
-| `/zentao-init` | 检测/安装禅道 MCP，引导配置 `ZENTAO_BASE_URL` / 账号 / 密码，开启 `ZENTAO_ALLOW_RESOLVE_BUG` |
-| `/zentao-config` | 设置要处理的禅道维度(`scope`+`scope_id`)与指派人(`assigned_to`)，及可选 `test_cmd`/`build_cmd`/`commit_prefix`，存到 `.zentao-triage/user-config.md`（不提交） |
-| `/zentao-bugfix` | 预检后拉取 active bug，按配置逐条修复；开局确认是否全自动，非自动则每个 bug 人工确认 |
+| `/bugfix-init` | 检测/安装禅道 MCP，引导配置 `ZENTAO_BASE_URL` / 账号 / 密码，开启 `ZENTAO_ALLOW_RESOLVE_BUG` |
+| `/bugfix-config` | 设置要处理的禅道维度(`scope`+`scope_id`)与指派人(`assigned_to`)，及可选 `test_cmd`/`build_cmd`/`commit_prefix`，存到 `.zentao-triage/user-config.md`（不提交） |
+| `/bugfix-run` | 预检后拉取 active bug，按配置逐条修复；开局确认是否全自动，非自动则每个 bug 人工确认 |
 
 ## 安装
 
@@ -55,7 +55,7 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
 
 `install.sh` 会做三件事：
 - 探测目标项目的宿主（看是否存在 `.codebuddy` / `.claude` / `.trae` / `.qoder` 等目录），找不到则默认按 Claude Code 布局；
-- 把 `skills/{zentao-init,zentao-config,zentao-bugfix}/SKILL.md` 复制到 `<项目根>/<宿主>/skills/<name>/SKILL.md`；
+- 把 `skills/{bugfix-init,bugfix-config,bugfix-run}/SKILL.md` 复制到 `<项目根>/<宿主>/skills/<name>/SKILL.md`；
 - 若目标项目 `.gitignore` 未忽略 `.zentao-triage/`，则自动追加忽略项（用户配置不进库）。
 
 > 各宿主具体的 skill 注入位置与 MCP 配置方式，见 [`docs/hosts.md`](docs/hosts.md)。
@@ -69,21 +69,21 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
 在 AI 客户端里依次运行三条命令：
 
 ```bash
-/zentao-init      # 装 MCP + 填凭据（需重启客户端让工具生效）
-/zentao-config    # 设产品/项目与指派人
-/zentao-bugfix    # 拉 bug 自动/半自动修复
+/bugfix-init      # 装 MCP + 填凭据（需重启客户端让工具生效）
+/bugfix-config    # 设产品/项目与指派人
+/bugfix-run    # 拉 bug 自动/半自动修复
 ```
 
 ## 设计要点
 
 - **凭据只在 MCP 配置**：`ZENTAO_*` 写在 `.mcp.json`（已 gitignore），绝不进 skill 文件，也不提交。
-- **用户配置独立存储**：`zentao-config` 写到 `<项目根>/.zentao-triage/user-config.md`，运行时生成、gitignore，不污染开源库。
+- **用户配置独立存储**：`bugfix-config` 写到 `<项目根>/.zentao-triage/user-config.md`，运行时生成、gitignore，不污染开源库。
 - **`test_cmd` / `build_cmd` 均为可选**：
   - 有 `test_cmd` → 作为 `fixed` 的强验证闸门；
   - 无 `test_cmd` 有 `build_cmd` → 轻量兜底；
   - 两者皆无 → 自动模式降级为「每修一个仍需人工确认」才 resolve，避免无验证谎称修复。
 - **设计如此/转需求分支**：确认为有意设计约束时走 `bydesign`；要落地成功能走 `tostory`，都不改代码、不空 commit。
-- **每 bug 人工确认**：`zentao-bugfix` 非自动模式下，每个 bug 修复+验证后停下来让人确认「是否提交并标记 resolved」「是否继续下一个」。
+- **每 bug 人工确认**：`bugfix-run` 非自动模式下，每个 bug 修复+验证后停下来让人确认「是否提交并标记 resolved」「是否继续下一个」。
 
 ## 宿主支持
 
@@ -98,9 +98,9 @@ bugAutoFixSkill/
 ├── LICENSE                 # MIT
 ├── .gitignore              # 忽略 .zentao-triage/ 与 .mcp.json
 ├── skills/
-│   ├── zentao-init/SKILL.md
-│   ├── zentao-config/SKILL.md
-│   └── zentao-bugfix/SKILL.md
+│   ├── bugfix-init/SKILL.md
+│   ├── bugfix-config/SKILL.md
+│   └── bugfix-run/SKILL.md
 ├── examples/
 │   └── .mcp.json           # MCP 配置模板（占位凭据）
 ├── scripts/

@@ -1,14 +1,14 @@
 ---
-name: zentao-bugfix
+name: bugfix-run
 version: 1.0.0
 description: 拉取禅道 Bug 并自动/半自动修复——先预检 MCP 与配置，询问是否全自动，再按 .zentao-triage/user-config.md 的 scope/id 与 assignedTo 拉取 active bug，逐条定位→修复→(test/build 校验)→commit→resolve。
 ---
 
-# zentao-bugfix：拉取并修复禅道 Bug
+# bugfix-run：拉取并修复禅道 Bug
 
 ## 0. 预检闸门（任意不满足则停下并提示）
-- `zentao_*` 工具可用（MCP 已连）？否则提示先跑 `zentao-init`。
-- `<项目根>/.zentao-triage/user-config.md` 存在且含 `scope` / `scope_id`？否则提示先跑 `zentao-config`。
+- `zentao_*` 工具可用（MCP 已连）？否则提示先跑 `bugfix-init`。
+- `<项目根>/.zentao-triage/user-config.md` 存在且含 `scope` / `scope_id`？否则提示先跑 `bugfix-config`。
 - 若 resolve 被拒（疑似 `ZENTAO_ALLOW_RESOLVE_BUG` 未开）：提示在 `.mcp.json` 开启后重启客户端。
 - 任一不满足 → 给出明确操作指引，**不静默执行**。
 

@@ -20,7 +20,7 @@ HOST_DIR=""
 # 定位 skills 源目录：本地随仓库运行时用本地 skills/；
 # 经 curl 运行时无本地文件，则下载 tarball 到临时目录后使用。
 SRC=""
-if [ -f "$(dirname "$0")/../skills/zentao-init/SKILL.md" ]; then
+if [ -f "$(dirname "$0")/../skills/bugfix-init/SKILL.md" ]; then
   SRC="$(cd "$(dirname "$0")/.." && pwd)"
 else
   command -v curl >/dev/null 2>&1 || { echo "需要 curl 来下载 skill，请先安装 curl 或改用本地克隆安装。"; exit 1; }
@@ -56,7 +56,7 @@ else
 fi
 
 mkdir -p "$HOST_DIR"
-for s in zentao-init zentao-config zentao-bugfix; do
+for s in bugfix-init bugfix-config bugfix-run; do
   mkdir -p "$HOST_DIR/$s"
   cp "$SRC/skills/$s/SKILL.md" "$HOST_DIR/$s/SKILL.md"
   echo "installed $s -> $HOST_DIR/$s"
@@ -67,4 +67,4 @@ if [ -f "$TARGET/.gitignore" ] && ! grep -q ".zentao-triage" "$TARGET/.gitignore
   printf "\n# zentao-triage 用户本地配置（不含在 skill 中）\n.zentao-triage/\n" >> "$TARGET/.gitignore"
 fi
 
-echo "Done. 接下来：运行 /zentao-init -> /zentao-config -> /zentao-bugfix"
+echo "Done. 接下来：运行 /bugfix-init -> /bugfix-config -> /bugfix-run"
