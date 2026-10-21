@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# 把三个 zentao skill 复制到目标项目的宿主 skills 目录，并确保忽略用户配置。
+# 把三个 bugfix skill 复制到目标项目的宿主 skills 目录，并确保忽略用户配置。
 # 用法：
 #   本地：bash scripts/install.sh [目标项目根目录，默认当前目录]
 #   远程：bash -c "$(curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.sh)" _ [目标项目根目录，默认当前目录]
 set -euo pipefail
 
-# 仓库 tarball 地址（curl 一键安装时下载用）。
-# 普通用户无需关心；fork / 镜像维护者可覆盖：
+# 下载源配置（curl 一键安装时下载用）。普通用户无需关心；fork / 镜像维护者可覆盖：
 #   BUG_AUTO_FIX_REPO=yourfork/bug-auto-fix-skill   （owner/repo，分支默认 main）
 #   BUG_AUTO_FIX_BRANCH=dev                          （可选，指定分支）
-#   BUG_AUTO_FIX_TARBALL=https://.../repo.tgz        （可选，直接覆盖完整地址，优先级最高）
+#   BUG_AUTO_FIX_SKILLS_BASE=https://.../skills      （可选，逐文件拉取的基础 URL）
+#   BUG_AUTO_FIX_TARBALL=https://.../repo.tgz        （可选，直接覆盖完整 tarball 地址，优先级最高）
+# 默认策略：优先从 jsDelivr 逐文件拉取（国内更稳），失败再回退 GitHub tarball。
 _REPO="${BUG_AUTO_FIX_REPO:-QKChen1994/bug-auto-fix-skill}"
 _BRANCH="${BUG_AUTO_FIX_BRANCH:-main}"
 REPO_TARBALL="${BUG_AUTO_FIX_TARBALL:-https://github.com/$_REPO/archive/refs/heads/$_BRANCH.tar.gz}"
@@ -18,18 +19,45 @@ TARGET="${1:-.}"
 HOST_DIR=""
 
 # 定位 skills 源目录：本地随仓库运行时用本地 skills/；
-# 经 curl 运行时无本地文件，则下载 tarball 到临时目录后使用。
+# 经 curl 运行时无本地文件，则下载 skills。默认优先从 jsDelivr 逐文件拉取（国内更稳），
+# 失败再回退 GitHub tarball。BUG_AUTO_FIX_SKILLS_BASE / BUG_AUTO_FIX_TARBALL 可覆盖源。
 SRC=""
 if [ -f "$(dirname "$0")/../skills/bugfix-init/SKILL.md" ]; then
   SRC="$(cd "$(dirname "$0")/.." && pwd)"
 else
   command -v curl >/dev/null 2>&1 || { echo "需要 curl 来下载 skill，请先安装 curl 或改用本地克隆安装。"; exit 1; }
-  echo "未检测到本地 skills，从 GitHub 下载 bug-auto-fix-skill ..."
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
-  curl -fsSL "$REPO_TARBALL" -o "$TMP/repo.tgz"
-  tar -xzf "$TMP/repo.tgz" -C "$TMP"
-  SRC="$TMP/$(tar -tzf "$TMP/repo.tgz" | head -1 | cut -d/ -f1)"
+
+  if [ -n "${BUG_AUTO_FIX_TARBALL:-}" ]; then
+    # 用户明确指定完整 tarball 源，直接用
+    echo "未检测到本地 skills，从指定的 tarball 下载 bug-auto-fix-skill ..."
+    curl -fsSL "$BUG_AUTO_FIX_TARBALL" -o "$TMP/repo.tgz"
+    tar -xzf "$TMP/repo.tgz" -C "$TMP"
+    SRC="$TMP/$(tar -tzf "$TMP/repo.tgz" | head -1 | cut -d/ -f1)"
+  else
+    # 优先从 jsDelivr 逐文件拉取（无需整包，国内更稳）
+    _SKILLS_BASE="${BUG_AUTO_FIX_SKILLS_BASE:-https://cdn.jsdelivr.net/gh/$_REPO@$_BRANCH/skills}"
+    echo "未检测到本地 skills，从 $_SKILLS_BASE 拉取 skills ..."
+    mkdir -p "$TMP/skills"
+    _ok=1
+    for s in bugfix-init bugfix-config bugfix-run; do
+      mkdir -p "$TMP/skills/$s"
+      if ! curl -fsSL "$_SKILLS_BASE/$s/SKILL.md" -o "$TMP/skills/$s/SKILL.md"; then
+        _ok=0
+        break
+      fi
+    done
+    if [ "$_ok" = 1 ]; then
+      SRC="$TMP"
+    else
+      # jsDelivr 失败，回退 GitHub tarball
+      echo "jsDelivr 拉取失败，回退 GitHub tarball ..."
+      curl -fsSL "$REPO_TARBALL" -o "$TMP/repo.tgz"
+      tar -xzf "$TMP/repo.tgz" -C "$TMP"
+      SRC="$TMP/$(tar -tzf "$TMP/repo.tgz" | head -1 | cut -d/ -f1)"
+    fi
+  fi
 fi
 
 # 按宿主探测 skills 目录：优先看目标项目里已存在的宿主目录；
