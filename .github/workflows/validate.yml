@@ -8,5 +8,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate SKILL.md frontmatter
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Shell syntax
+        run: |
+          for f in scripts/install.sh scripts/smoke-test.sh scripts/validate.sh; do
+            bash -n "$f"
+          done
+
+      - name: Shellcheck
+        run: shellcheck scripts/install.sh scripts/smoke-test.sh scripts/validate.sh
+
+      - name: Validate SKILL.md and docs
         run: bash scripts/validate.sh
+
+      - name: Install smoke test
+        run: bash scripts/smoke-test.sh

@@ -27,7 +27,41 @@ for f in "$ROOT"/skills/*/SKILL.md; do
   [ -z "$name" ] || echo "OK: $dir (name=$name, version=${version:-?})"
 done
 
+# README 与 AGENTS.md 必须覆盖三个命令名，避免文档漂移
+for doc in "$ROOT/README.md" "$ROOT/examples/AGENTS.md"; do
+  if [ ! -f "$doc" ]; then
+    echo "FAIL: 缺少 $doc"; fail=1; continue
+  fi
+  for cmd in bugfix-init bugfix-config bugfix-run; do
+    if ! grep -q "$cmd" "$doc"; then
+      echo "FAIL: $doc 未提及 $cmd"; fail=1
+    fi
+  done
+done
+
+# 提问必须使用宿主无关描述，不能硬编码某个宿主的工具名
+if grep -Rqs "ask_followup_question" "$ROOT/skills" "$ROOT/examples" "$ROOT/README.md" "$ROOT/docs"; then
+  echo "FAIL: 发现宿主特定工具名 ask_followup_question，请改用宿主无关描述"; fail=1
+fi
+
+# 仓库自身必须忽略用户配置与真实 MCP 凭据
+for entry in '.zentao-triage/' '/.mcp.json'; do
+  if ! grep -qxF "$entry" "$ROOT/.gitignore"; then
+    echo "FAIL: .gitignore 缺少 $entry"; fail=1
+  fi
+done
+
+# MCP 配置必须使用 ceeyang/zentao_mcp 的当前安装方式与变量名
+if grep -RqsE "zentao-mcp-installer|npx -y zentao-mcp" "$ROOT/skills" "$ROOT/examples" "$ROOT/README.md" "$ROOT/docs"; then
+  echo "FAIL: 发现旧/第三方 zentao-mcp 安装方式，请使用 ceeyang/zentao_mcp 官方 install.sh"; fail=1
+fi
+for f in "$ROOT/examples/.mcp.json" "$ROOT/examples/AGENTS.md" "$ROOT/skills/bugfix-init/SKILL.md"; do
+  if ! grep -q "ZENTAO_URL" "$f"; then
+    echo "FAIL: $f 未使用 ZENTAO_URL"; fail=1
+  fi
+done
+
 if [ "$fail" -ne 0 ]; then
   echo "校验未通过"; exit 1
 fi
-echo "全部 SKILL.md 校验通过"
+echo "全部 SKILL.md 与文档一致性校验通过"

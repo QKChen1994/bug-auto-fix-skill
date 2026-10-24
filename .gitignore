@@ -1,7 +1,7 @@
-# 用户本地配置（由 zentao-config 生成，不含在 skill 开源库中）
+# 用户本地配置与运行日志（由 bugfix-config / bugfix-run 生成，不含在 skill 开源库中）
 .zentao-triage/
 
-# 真实 MCP 配置（含密钥，由 zentao-init 生成；注意：examples/.mcp.json 是模板，需保留）
+# 真实 MCP 配置（含密钥，由 bugfix-init 生成；注意：examples/.mcp.json 是模板，需保留）
 /.mcp.json
 
 # OS

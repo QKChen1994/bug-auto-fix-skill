@@ -1,10 +1,10 @@
 {
   "mcpServers": {
     "zentao": {
-      "command": "npx",
-      "args": ["-y", "zentao-mcp"],
+      "command": "node",
+      "args": ["/Users/yourname/.local/share/zentao-mcp/dist/index.js"],
       "env": {
-        "ZENTAO_BASE_URL": "https://your-zentao.example.com/",
+        "ZENTAO_URL": "http://127.0.0.1:18080",
         "ZENTAO_ACCOUNT": "your_account",
         "ZENTAO_PASSWORD": "your_password",
         "ZENTAO_ALLOW_RESOLVE_BUG": "true"

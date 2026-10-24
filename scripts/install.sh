@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 把三个 bugfix skill 复制到目标项目的宿主 skills 目录，并确保忽略用户配置。
+# 把三个 bugfix skill 复制到目标项目的宿主 skills 目录，并确保忽略用户配置与真实 MCP 配置。
 # 用法：
 #   本地：bash scripts/install.sh [目标项目根目录，默认当前目录]
 #   远程：bash -c "$(curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.sh)" _ [目标项目根目录，默认当前目录]
@@ -22,7 +22,8 @@ HOST_DIR=""
 # 经 curl 运行时无本地文件，则下载 skills。默认优先从 jsDelivr 逐文件拉取（国内更稳），
 # 失败再回退 GitHub tarball。BUG_AUTO_FIX_SKILLS_BASE / BUG_AUTO_FIX_TARBALL 可覆盖源。
 SRC=""
-if [ -f "$(dirname "$0")/../skills/bugfix-init/SKILL.md" ]; then
+# 经 curl | bash / bash -c 运行时 $0 不是脚本文件，不能据此判断本地目录。
+if [ -f "$0" ] && [ -f "$(dirname "$0")/../skills/bugfix-init/SKILL.md" ]; then
   SRC="$(cd "$(dirname "$0")/.." && pwd)"
 else
   command -v curl >/dev/null 2>&1 || { echo "需要 curl 来下载 skill，请先安装 curl 或改用本地克隆安装。"; exit 1; }
@@ -33,8 +34,10 @@ else
     # 用户明确指定完整 tarball 源，直接用
     echo "未检测到本地 skills，从指定的 tarball 下载 bug-auto-fix-skill ..."
     curl -fsSL "$BUG_AUTO_FIX_TARBALL" -o "$TMP/repo.tgz"
-    tar -xzf "$TMP/repo.tgz" -C "$TMP"
-    SRC="$TMP/$(tar -tzf "$TMP/repo.tgz" | head -1 | cut -d/ -f1)"
+    mkdir -p "$TMP/repo"
+    tar -xzf "$TMP/repo.tgz" -C "$TMP/repo" --strip-components=1
+    SRC="$TMP/repo"
+    [ -f "$SRC/skills/bugfix-init/SKILL.md" ] || { echo "下载内容不完整，未找到 skills/bugfix-init/SKILL.md"; exit 1; }
   else
     # 优先从 jsDelivr 逐文件拉取（无需整包，国内更稳）
     _SKILLS_BASE="${BUG_AUTO_FIX_SKILLS_BASE:-https://cdn.jsdelivr.net/gh/$_REPO@$_BRANCH/skills}"
@@ -54,8 +57,10 @@ else
       # jsDelivr 失败，回退 GitHub tarball
       echo "jsDelivr 拉取失败，回退 GitHub tarball ..."
       curl -fsSL "$REPO_TARBALL" -o "$TMP/repo.tgz"
-      tar -xzf "$TMP/repo.tgz" -C "$TMP"
-      SRC="$TMP/$(tar -tzf "$TMP/repo.tgz" | head -1 | cut -d/ -f1)"
+      mkdir -p "$TMP/repo"
+      tar -xzf "$TMP/repo.tgz" -C "$TMP/repo" --strip-components=1
+      SRC="$TMP/repo"
+      [ -f "$SRC/skills/bugfix-init/SKILL.md" ] || { echo "下载内容不完整，未找到 skills/bugfix-init/SKILL.md"; exit 1; }
     fi
   fi
 fi
@@ -64,6 +69,8 @@ fi
 # 都没有时，再用环境变量 / 已安装的 CLI 作兜底。
 if [ -d "$TARGET/.codebuddy" ]; then
   HOST_DIR="$TARGET/.codebuddy/skills"
+elif [ -d "$TARGET/.cursor" ]; then
+  HOST_DIR="$TARGET/.cursor/skills"
 elif [ -d "$TARGET/.trae" ]; then
   HOST_DIR="$TARGET/.trae/skills"
 elif [ -d "$TARGET/.qoder" ]; then
@@ -90,9 +97,23 @@ for s in bugfix-init bugfix-config bugfix-run; do
   echo "installed $s -> $HOST_DIR/$s"
 done
 
-# 确保用户本地配置被忽略（不进开源库）
-if [ -f "$TARGET/.gitignore" ] && ! grep -q ".zentao-triage" "$TARGET/.gitignore"; then
-  printf "\n# zentao-triage 用户本地配置（不含在 skill 中）\n.zentao-triage/\n" >> "$TARGET/.gitignore"
+# 确保用户本地配置与含凭据的 MCP 配置被忽略（不进开源库）
+GITIGNORE="$TARGET/.gitignore"
+if [ ! -f "$GITIGNORE" ]; then
+  printf '# 本地 AI/禅道配置（含凭据，请勿提交）\n' > "$GITIGNORE"
 fi
+
+ensure_ignored() {
+  local entry="$1" pattern="$2"
+  if ! grep -qE "$pattern" "$GITIGNORE" 2>/dev/null; then
+    if [ -s "$GITIGNORE" ] && [ -n "$(tail -c 1 "$GITIGNORE")" ]; then
+      printf '\n' >> "$GITIGNORE"
+    fi
+    printf '%s\n' "$entry" >> "$GITIGNORE"
+  fi
+}
+
+ensure_ignored '.zentao-triage/' '^/?\.zentao-triage/?$'
+ensure_ignored '.mcp.json' '^/?\.mcp\.json$'
 
 echo "Done. 接下来：运行 /bugfix-init -> /bugfix-config -> /bugfix-run"

@@ -1,41 +1,116 @@
 ---
 name: bugfix-config
-version: 1.0.0
-description: 配置禅道筛选与校验条件——设置要处理的禅道维度(scope+id)与指派人(assignedTo)，以及可选的 test_cmd/build_cmd/commit_prefix，存入项目根 .zentao-triage/user-config.md（不提交）。
+version: 1.2.0
+description: 配置、查看或重置禅道筛选与校验条件——从禅道拉取 scope 列表供选择，配置 assigned_to、test_cmd/build_cmd/commit_prefix/limit，写入 .zentao-triage/user-config.md（按 YAML 解析，不提交）；支持 --show 与 --reset。
 ---
 
 # bugfix-config：设置项目、指派人与校验配置
 
+## 参数
+- 无参数：创建配置；已存在时询问「修改 / 取消」。
+- `--show`：读取并展示当前配置，不做任何写入。
+- `--reset`：展示当前配置 → 确认 → 备份 → 删除 → 询问是否立即重新配置。
+
 ## 配置文件
 路径：`<项目根>/.zentao-triage/user-config.md`（git 已忽略，不进开源库）。
+整个文件按 **YAML** 解析（`#` 开头为注释）。
+
+| 字段 | 必填 | 类型 / 默认 | 说明 |
+|---|---|---|---|
+| `scope` | 是（创建配置时） | `product` / `project` / `execution` | 禅道维度；`project` / `execution` 要求 Bug 已关联到对应范围 |
+| `scope_id` | 是（创建配置时） | 正整数 | 对应产品/项目/执行 id；可先用 `zentao_list_scopes` 查询 |
+| `assigned_to` | 否 | 字符串，默认 `""` | 禅道账号；对应 MCP 的 `assignedTo`；留空 = 不过滤，运行前会再次确认 |
+| `test_cmd` | 否 | 字符串，默认 `""` | 强验证命令；为空时不能静默自动 resolve |
+| `build_cmd` | 否 | 字符串，默认 `""` | 无测试时的轻量兜底校验 |
+| `commit_prefix` | 否 | 默认 `fix(zentao-#{id}): ` | 提交信息模板；**必须包含 `{id}`**，运行时替换为 bug id |
+| `limit` | 否 | 正整数，默认 `50` | 批量拉取上限；达到上限时会提示可能还有更多 |
+
+> 只处理单条 bug 时可以不创建本配置（`/bugfix-run <id>` 使用默认值）；
+> 创建后批量运行仍要求 `scope` / `scope_id` 合法。
+> 按项目/迭代管理时，Bug 必须在禅道中关联到对应 project/execution；
+> 只挂在产品下的 Bug 不会出现在 project/execution 列表里。
 
 示例：
-```markdown
+
+```yaml
 # zentao-triage 用户配置（请勿提交）
 scope: product
 scope_id: 1
 assigned_to: ""
 test_cmd: ""
 build_cmd: ""
-commit_prefix: "fix(zentao-#"
+commit_prefix: "fix(zentao-#{id}): "
+limit: 50
 ```
 
+> 写入时只写代码围栏内的 YAML 内容，不要把围栏本身写进配置文件。
+
 ## 步骤
-1. 若配置文件**已存在**：
-   - 用 `ask_followup_question` 询问：「检测到已有配置(.zentao-triage/user-config.md)，是否修改？[修改配置 / 取消]」。
+
+1. **`--show`**：读取配置文件并展示；文件不存在则明确提示「尚未配置」，不创建。
+   展示前先按下方规则校验，有问题时指出具体字段。
+
+2. **`--reset`**：
+   - 文件不存在 → 提示无需重置，结束。
+   - 展示当前配置 → 确认是否重置。
+   - 备份为 `.zentao-triage/user-config.<YYYYMMDD-HHmmss>.bak`，备份失败则停止，不删除原文件。
+   - 询问「是否现在重新配置？[是 / 否]」；选「是」进入下方采集流程。
+   - 重置只影响项目配置，不动 MCP 凭据（凭据重置用 `/bugfix-init --reset`）。
+
+3. **无参数且配置已存在**：
+   - 展示当前内容，询问「修改配置 / 取消」。
    - 选「取消」→ 直接结束，不动原文件。
-   - 选「修改」→ 先展示当前内容，再逐项让用户调整。
-2. 若**不存在** → 创建 `.zentao-triage/` 目录与 `user-config.md`；同时确保仓库根 `.gitignore` 已忽略 `.zentao-triage/`。
-3. 采集字段（向用户询问，未给则用默认值/留空）：
-   - `scope`：product / project / execution（必填）。
-   - `scope_id`：对应产品/项目/执行 id（必填）。
-   - `assigned_to`：指派人账号，留空 = 不过滤（拉全部 active）。
-   - `test_cmd`：**可选**，如 `make test` / `go test ./...`，留空 = 不跑测试。
-   - `build_cmd`：**可选**轻量兜底校验，如 `go build ./...`，留空 = 不编译校验。
-   - `commit_prefix`：可选，默认 `fix(zentao-#`。
-4. 写入文件并回显最终配置，提示接下来可运行 `bugfix-run`。
+   - 选「修改」→ 逐项让用户调整；写入前回显最终内容。
+
+4. **创建配置**：
+   - 创建 `.zentao-triage/` 目录。
+   - 确保 `.gitignore` 忽略 `.zentao-triage/`；没有 `.gitignore` 就创建。
+
+   **4.1 选择维度 `scope`**：用宿主的选项式提问让用户选 product / project / execution；
+   说明 `project` / `execution` 只会看到已关联到该范围的 Bug。
+
+   **4.2 选择 `scope_id`（优先从禅道拉取）**：
+   - MCP 已连通：
+     - 调用 `zentao_list_scopes(kind=<scope>, limit=100)`。
+       返回数量达到 limit 时翻页；选项过多时先让用户输入关键词，再在本地过滤名称。
+     - `execution` 先列项目让用户选，再用 `zentao_list_scopes(kind=execution, projectId=<项目 id>)` 缩小范围。
+     - 把候选项以 `名称 (id=...)` 作为选项让用户选；选中项的 id 直接写入 `scope_id`。
+       不要要求用户手记 id，也不要猜测 id。
+     - 列表为空时说明可能没有该维度数据或权限不足，不要随便填一个 id。
+   - MCP 未连通 / 拉取失败：回退让用户手动输入 id，并提示先 `/bugfix-init`。
+
+   **4.3 选择 `assigned_to`**：当前 MCP 没有用户列表工具，手动填账号或留空；
+   留空 = 不过滤（批量运行前会再次确认）。已有配置时展示当前值。
+
+   **4.4 自动探测 `test_cmd` / `build_cmd`（可选）**：
+   - 扫描仓库根常见入口，给用户选项（可自定义/留空，只建议不执行）：
+     - `package.json` → `npm test` / `npm run build`；有 pnpm/yarn lockfile 时用对应命令；
+     - `Makefile` → `make test` / `make build`（存在对应 target 时）；
+     - `go.mod` → `go test ./...` / `go build ./...`；
+     - `pom.xml` → `mvn test` / `mvn package -DskipTests`；
+     - `build.gradle` / `build.gradle.kts` → `./gradlew test` / `./gradlew build`；
+     - `pyproject.toml` / `requirements.txt` → `pytest` / `python -m build`；
+     - `Cargo.toml` → `cargo test` / `cargo build`。
+   - 用户可只设一个，或都留空；都留空时自动模式会降级为逐条人工确认。
+
+   **4.5 选择 `commit_prefix` / `limit`**：
+   - `commit_prefix`：默认 `fix(zentao-#{id}): `，必须含 `{id}`；
+   - `limit`：默认 `50`，正整数。
+
+5. **校验规则**（写前和运行前都要检查）：
+   - `scope` 必须是 `product` / `project` / `execution` 之一；
+   - `scope_id`、`limit` 必须是正整数；
+   - `commit_prefix` 必须是非空字符串且包含 `{id}`；建议保留固定文本（如 `zentao-#`），便于 `git log` 精确匹配；
+   - `test_cmd` / `build_cmd` / `assigned_to` 必须是字符串（可为空）。
+   - 校验失败时不要写入，指出字段并给出修复建议。
+
+6. **写入并回显**：写入 `user-config.md`，回显最终配置（不含任何凭据），
+   提示接下来可运行 `/bugfix-run`；只修单条时可用 `/bugfix-run <bugId>`，
+   不记得 id 时可用 `/bugfix-run --pick` 从列表选。
 
 ## 注意
 - `test_cmd` / `build_cmd` 均**可选**；都不设时，`bugfix-run` 在自动模式下会降级为
   「每修一个仍需人工确认」才 resolve，避免无验证谎称修复。
+- 旧配置若使用 `fix(zentao-#`（缺少 `{id}` 和右括号），提示迁移为 `fix(zentao-#{id}): `。
 - 改代码类 bug 才需要 test/build 校验；`bydesign` / `tostory` 结项不涉及代码改动。
+- 本文件只存项目配置，不存禅道账号密码。
