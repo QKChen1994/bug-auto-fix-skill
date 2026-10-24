@@ -45,7 +45,8 @@
    无参数先问「批量全部 / 从列表选一条」；`--pick` 直接进入列表；无配置时用 `zentao_list_my_bugs`。
 2. 模式：全自动 / 每 bug 人工确认。
 3. 目标：单条用 `get_bug`；`--pick` 用 `list_bugs`（或 `list_my_bugs`）按 page 翻页到 total，
-   筛 active 后展示 `#id 标题` 选项让用户选，可继续选下一条；宿主支持多选时按顺序逐条处理。
+   筛 active 后展示 `#id 标题` 选项让用户选；宿主支持 `multiSelect` 时设为 true 并可多选，
+   按选择顺序逐条处理。
    批量用 `list_bugs(scope, id, limit, assignedTo?)`，自行筛 `status=active`
    （**不要传 status**；0.2.0 实测过滤无效）；`limit` 是每页大小，按 total 翻页，不要只处理第一页。
 4. 每条：`get_bug` → 用 `git log --fixed-strings --grep` 查已有 commit（避免重复提交）→

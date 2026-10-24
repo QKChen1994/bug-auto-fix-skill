@@ -105,7 +105,7 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
   - 无 `test_cmd` 有 `build_cmd` → 轻量兜底；
   - 两者皆无 → 自动模式降级为「每修一个仍需人工确认」，避免无验证谎称修复。
 - **自动模式有边界且不阻塞**：只有 `fixed` 且验证通过才自动提交并 resolve；`bydesign` / `tostory` 等非 fixed 结项不会自动 resolve，也不会卡住后续 bug——自动模式先记录到「待确认结项」队列并继续，结束后统一展示。
-- **单条修复**：`/bugfix-run <bugId>` 直接指定，或用 `/bugfix-run --pick` 从 active bug 列表选一条（不记得 id 也能用）；`--dry-run` 只出方案，`--no-resolve` 只提交不回写。
+- **单条修复**：`/bugfix-run <bugId>` 直接指定，或用 `/bugfix-run --pick` 从 active bug 列表选择（不记得 id 也能用；宿主支持 `multiSelect` 时可多选）；`--dry-run` 只出方案，`--no-resolve` 只提交不回写。
 - **待确认结项会落盘**：例如 10 条 bug 中 2 条判为 bydesign，其余 8 条照常修复并 resolve；这 2 条保持 active，在会话汇总和 `.zentao-triage/runs/<时间戳>.md` 的 `## 待确认结项` 中列出 id、标题、理由和建议 resolution。
 - **提交纪律**：开跑记录 `git status` 基线；每个 bug 只 stage 自己改动的文件；不 `git add -A`、不绕过 hooks、不自动 push；失败的 bug 残留改动必须显式处理。
 - **幂等与运行日志**：修复前用 commit 前缀查历史提交，避免重复 commit；commit 成功但 resolve 失败时可重跑补结项；每次运行写 `.zentao-triage/runs/<时间戳>.md`。

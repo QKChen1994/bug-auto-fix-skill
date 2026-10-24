@@ -4,5 +4,14 @@
 # 真实 MCP 配置（含密钥，由 bugfix-init 生成；注意：examples/.mcp.json 是模板，需保留）
 /.mcp.json
 
+# AI 编码工具的本地安装目录（不进远程仓库）
+.qoder/
+.codebuddy/
+.claude/
+.cursor/
+.trae/
+.codex/
+.windsurf/
+
 # OS
 .DS_Store

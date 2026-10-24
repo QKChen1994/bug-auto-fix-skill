@@ -50,8 +50,10 @@ description: 拉取禅道 Bug 并自动/半自动修复——支持批量、指�
   - 按 `page` 翻页直到覆盖 `total`，拉回后自行筛 `status=active`；
     把候选以 `#id 标题（指派/状态）` 作为宿主的选项让用户选。
     选项过多时先分页，或让用户输入关键词本地过滤；不要只展示第一页，也不要要求用户手记 id。
-  - 选一条处理；宿主支持多选时可选多条，按选择顺序逐条处理，每条独立验证/commit/resolve，
-    中途停止则保留未处理项。每处理完一条询问「继续选下一条 / 结束」。
+  - 若宿主的提问工具支持 `multiSelect`（Qoder / Claude Code 的 `AskUserQuestion`），
+    把 `multiSelect` 设为 `true`；Cursor/CodeBuddy 不支持时退回单选。
+  - 选中多条时按选择顺序逐条处理，每条独立验证/commit/resolve；中途停止则保留未处理项。
+    每处理完一条询问「继续选下一条 / 结束」。
 - **批量模式**：
   - `zentao_list_bugs(scope=<scope>, id=<scope_id>, limit=<limit>, assignedTo=<assigned_to 或省略>)`。
   - **不要传 `status`**（0.2.0 实测传 `status=active` 仍会返回 resolved），拉回后自行筛 `status=active`。
