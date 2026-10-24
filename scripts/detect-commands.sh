@@ -30,10 +30,8 @@ if [ -f package.json ]; then
       *) emit "build_cmd=npm run build" ;;
     esac
   fi
-  if ! grep -Eq '"test"[[:space:]]*:' package.json && ! grep -Eq '"build"[[:space:]]*:' package.json; then
-    if grep -Eq '"workspaces"[[:space:]]*:' package.json; then
-      emit "note=monorepo: confirm per-package commands"
-    fi
+  if [ -f pnpm-workspace.yaml ] || grep -Eq '"workspaces"[[:space:]]*:' package.json; then
+    emit "note=monorepo: confirm per-package commands"
   fi
   exit 0
 fi
@@ -60,6 +58,32 @@ if [ -f build.gradle ] || [ -f build.gradle.kts ]; then
     emit "stack=gradle" "test_cmd=./gradlew test" "build_cmd=./gradlew build"
   else
     emit "stack=gradle" "test_cmd=gradle test" "build_cmd=gradle build"
+  fi
+  exit 0
+fi
+
+if [ -f composer.json ]; then
+  emit "stack=php"
+  if grep -Eq '"test"[[:space:]]*:' composer.json; then
+    emit "test_cmd=composer test"
+  elif [ -f phpunit.xml ] || [ -f phpunit.xml.dist ]; then
+    emit "test_cmd=vendor/bin/phpunit"
+  fi
+  if grep -Eq '"build"[[:space:]]*:' composer.json; then
+    emit "build_cmd=composer run build"
+  fi
+  exit 0
+fi
+
+if [ -f Gemfile ]; then
+  emit "stack=ruby"
+  if [ -d spec ]; then
+    emit "test_cmd=bundle exec rspec"
+  elif [ -f Rakefile ] && grep -Eq '^test[[:space:]]*:' Rakefile; then
+    emit "test_cmd=bundle exec rake test"
+  fi
+  if compgen -G '*.gemspec' >/dev/null; then
+    emit "build_cmd=gem build *.gemspec"
   fi
   exit 0
 fi

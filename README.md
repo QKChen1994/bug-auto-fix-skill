@@ -98,7 +98,7 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
 
 - **凭据只在 MCP 配置**：`ZENTAO_*` 写在 `.mcp.json`（由安装脚本加入 `.gitignore`），绝不进 skill 文件，也不提交。
 - **用户配置独立存储且校验**：`bugfix-config` 写到 `<项目根>/.zentao-triage/user-config.md`（YAML，gitignore）。先用 `zentao_list_scopes` 拉取产品/项目/执行列表，以 `名称(id=...)` 选项让用户选，再校验 `scope`、`scope_id`、`limit`、`commit_prefix` 等字段。支持 `product` / `project` / `execution` 三种维度；`project` / `execution` 要求 Bug 已关联到对应范围。
-- **命令与测试条件有建议值**：`test_cmd` / `build_cmd` 优先运行 `.zentao-triage/bin/detect-commands.sh`，扫描 `package.json`、`Makefile`、`go.mod`、`pom.xml`、`build.gradle`、`pyproject.toml`、`Cargo.toml` 等给出建议，用户可自定义或留空。
+- **命令与测试条件有建议值**：`test_cmd` / `build_cmd` 优先运行 `.zentao-triage/bin/detect-commands.sh`，扫描 `package.json`、`Makefile`、`go.mod`、`pom.xml`、`build.gradle`、`composer.json`、`Gemfile`、`pyproject.toml`、`Cargo.toml` 及 monorepo 配置给出建议，用户可自定义或留空。
 - **指派人可从禅道选择**：`.zentao-triage/bin/zentao-users.mjs` 读取 MCP 配置并列出 `account（realname）`，供 `assigned_to` 选择；无权限或脚本不可用时回退手动输入/留空。
 - **`test_cmd` / `build_cmd` 均为可选**：
   - 有 `test_cmd` → 作为 `fixed` 的强验证闸门；

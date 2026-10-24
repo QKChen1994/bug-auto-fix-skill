@@ -29,6 +29,26 @@
 > 需要在 Qoder「设置 → MCP」中添加 `zentao`，再用 `zentao_health_check` 确认工具可见。
 > 同时存在多个宿主目录时，`install.sh` 只装到第一个命中的目录；多宿主项目需手动复制到其余目录。
 
+## Qoder MCP（跨机器）
+
+- `.qoder/skills` 由 `install.sh` 安装，Qoder 会自动加载；项目根 `.mcp.json` **不保证**自动注入新会话。
+- 在 Qoder「设置 → MCP」添加一个 stdio server（按实际路径替换）：
+  ```json
+  {
+    "command": "node",
+    "args": ["/absolute/path/to/zentao-mcp/dist/index.js"],
+    "env": {
+      "ZENTAO_URL": "http://127.0.0.1:18080",
+      "ZENTAO_ACCOUNT": "your_account",
+      "ZENTAO_PASSWORD": "your_password",
+      "ZENTAO_ALLOW_RESOLVE_BUG": "true"
+    }
+  }
+  ```
+- 不想把密码写进 Qoder 配置时，可让 `command` 指向一个本机 wrapper（`chmod 700`，不要提交），
+  wrapper 从本地凭据文件读取 `ZENTAO_*` 后 `exec node .../zentao-mcp/dist/index.js`。
+- 新建或重启会话后调用 `zentao_health_check`，确认 `zentao_*` 工具可见且 `authenticated=true`。
+
 ## Codex CLI 适配
 Codex 没有 Claude 风格的 `SKILL.md` 自动加载机制，建议：
 1. 把 `examples/AGENTS.md` 复制到目标项目根并命名为 `AGENTS.md`，

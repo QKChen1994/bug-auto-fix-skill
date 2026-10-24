@@ -99,8 +99,11 @@ limit: 50
      - `go.mod` → `go test ./...` / `go build ./...`；
      - `pom.xml` → `mvn test` / `mvn package -DskipTests`；
      - `build.gradle` / `build.gradle.kts` → `./gradlew test` / `./gradlew build`；
+     - `composer.json` → `composer test` / `composer run build`，或 `phpunit.xml` → `vendor/bin/phpunit`；
+     - `Gemfile` → `bundle exec rspec` / `bundle exec rake test`；
      - `pyproject.toml` / `requirements.txt` → `pytest` / `python -m build`；
-     - `Cargo.toml` → `cargo test` / `cargo build`。
+     - `Cargo.toml` → `cargo test` / `cargo build`；
+     - monorepo（workspaces / pnpm-workspace.yaml）→ 提示确认 per-package 命令。
    - 用户可只设一个，或都留空；都留空时自动模式会降级为逐条人工确认。
 
    **4.5 选择 `commit_prefix` / `limit`**：

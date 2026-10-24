@@ -30,8 +30,8 @@
 - `project`/`execution` 要求 Bug 已关联到对应范围；`assigned_to` 可用
   `.zentao-triage/bin/zentao-users.mjs` 拉账号列表选择，失败则手动填或留空。
 - `test_cmd`/`build_cmd` 优先运行 `.zentao-triage/bin/detect-commands.sh` 获取建议；
-  没有脚本时扫描 package.json / Makefile / go.mod / pom.xml / build.gradle / pyproject.toml /
-  Cargo.toml。用户确认（可自定义或留空）。
+  没有脚本时扫描 package.json / Makefile / go.mod / pom.xml / build.gradle / composer.json /
+  Gemfile / pyproject.toml / Cargo.toml / monorepo 配置。用户确认（可自定义或留空）。
 - 采集并写入：`scope`、`scope_id`(正整数)、`assigned_to`(可选)、
   `test_cmd`(可选)、`build_cmd`(可选)、`commit_prefix`(默认 `fix(zentao-#{id}): `，必须含 `{id}`)、
   `limit`(默认 50，正整数)。
