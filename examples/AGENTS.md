@@ -27,9 +27,11 @@
 - 先让用户选 `scope`(product/project/execution)；MCP 已连时用
   `zentao_list_scopes(kind=<scope>)` 拉取候选（execution 可先选 projectId），
   以 `名称(id=...)` 作为宿主的选项让用户选，不要猜 id；未连通时回退手动输入并提示 `/bugfix-init`。
-- `project`/`execution` 要求 Bug 已关联到对应范围；`assigned_to` 手动填或留空（MCP 无用户列表工具）。
-- `test_cmd`/`build_cmd` 可扫描 package.json / Makefile / go.mod / pom.xml / build.gradle /
-  pyproject.toml / Cargo.toml 给出建议选项，用户确认（可自定义或留空）。
+- `project`/`execution` 要求 Bug 已关联到对应范围；`assigned_to` 可用
+  `.zentao-triage/bin/zentao-users.mjs` 拉账号列表选择，失败则手动填或留空。
+- `test_cmd`/`build_cmd` 优先运行 `.zentao-triage/bin/detect-commands.sh` 获取建议；
+  没有脚本时扫描 package.json / Makefile / go.mod / pom.xml / build.gradle / pyproject.toml /
+  Cargo.toml。用户确认（可自定义或留空）。
 - 采集并写入：`scope`、`scope_id`(正整数)、`assigned_to`(可选)、
   `test_cmd`(可选)、`build_cmd`(可选)、`commit_prefix`(默认 `fix(zentao-#{id}): `，必须含 `{id}`)、
   `limit`(默认 50，正整数)。
@@ -37,13 +39,15 @@
 
 ## 命令：/bugfix-run [<bugId>|--pick] [--dry-run|--no-resolve]
 1. 预检：`zentao_health_check` 的 `authenticated=true`、`writeGates.resolveBugEnabled=true`；
+   若 `zentao_*` 工具不可见，停止并配置 MCP，不要用临时脚本读 `.mcp.json` 绕过；
    批量模式要求配置含合法 `scope`/`scope_id`，单条/`--pick` 配置可选；
    非 dry-run 时记录 `git status --porcelain` 基线，有脏改动先确认；`assigned_to` 为空时确认处理全部。
    无参数先问「批量全部 / 从列表选一条」；`--pick` 直接进入列表；无配置时用 `zentao_list_my_bugs`。
 2. 模式：全自动 / 每 bug 人工确认。
-3. 目标：单条用 `get_bug`；`--pick` 用 `list_bugs`（或 `list_my_bugs`）筛 active，
-   展示 `#id 标题` 选项让用户选，可继续选下一条；批量用 `list_bugs(scope, id, limit, assignedTo?)`，
-   自行筛 `status=active`（**不要传 status**）；达到 `limit` 提示可能还有更多。
+3. 目标：单条用 `get_bug`；`--pick` 用 `list_bugs`（或 `list_my_bugs`）按 page 翻页到 total，
+   筛 active 后展示 `#id 标题` 选项让用户选，可继续选下一条；宿主支持多选时按顺序逐条处理。
+   批量用 `list_bugs(scope, id, limit, assignedTo?)`，自行筛 `status=active`
+   （**不要传 status**；0.2.0 实测过滤无效）；`limit` 是每页大小，按 total 翻页，不要只处理第一页。
 4. 每条：`get_bug` → 用 `git log --fixed-strings --grep` 查已有 commit（避免重复提交）→
    最小修复 → 验证闸门（`test_cmd` > `build_cmd` > 人工）→
    `bydesign`/`tostory` 或其他 resolution（duplicate/external/notrepro/postponed/willnotfix）

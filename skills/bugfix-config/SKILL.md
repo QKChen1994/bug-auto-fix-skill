@@ -23,7 +23,7 @@ description: 配置、查看或重置禅道筛选与校验条件——从禅道�
 | `test_cmd` | 否 | 字符串，默认 `""` | 强验证命令；为空时不能静默自动 resolve |
 | `build_cmd` | 否 | 字符串，默认 `""` | 无测试时的轻量兜底校验 |
 | `commit_prefix` | 否 | 默认 `fix(zentao-#{id}): ` | 提交信息模板；**必须包含 `{id}`**，运行时替换为 bug id |
-| `limit` | 否 | 正整数，默认 `50` | 批量拉取上限；达到上限时会提示可能还有更多 |
+| `limit` | 否 | 正整数，默认 `50` | 每页大小；运行时会按 `total` 翻页拉全 |
 
 > 只处理单条 bug 时可以不创建本配置（`/bugfix-run <id>` 使用默认值）；
 > 创建后批量运行仍要求 `scope` / `scope_id` 合法。
@@ -71,18 +71,28 @@ limit: 50
 
    **4.2 选择 `scope_id`（优先从禅道拉取）**：
    - MCP 已连通：
-     - 调用 `zentao_list_scopes(kind=<scope>, limit=100)`。
-       返回数量达到 limit 时翻页；选项过多时先让用户输入关键词，再在本地过滤名称。
-     - `execution` 先列项目让用户选，再用 `zentao_list_scopes(kind=execution, projectId=<项目 id>)` 缩小范围。
+     - 调用 `zentao_list_scopes(kind=<scope>, limit=100)`，按 `page` 递增翻页，
+       直到已取数量覆盖 `total`；不要把第一页当成全量。
+     - 候选仍过多时，先让用户输入关键词，再在已拉取的全量名称中本地过滤
+       （MCP 没有 keyword 参数）；不要只展示第一页。
+     - `execution` 先列项目让用户选，再用 `zentao_list_scopes(kind=execution, projectId=<项目 id>)`
+       缩小范围，同样按 `total` 翻页。
      - 把候选项以 `名称 (id=...)` 作为选项让用户选；选中项的 id 直接写入 `scope_id`。
        不要要求用户手记 id，也不要猜测 id。
      - 列表为空时说明可能没有该维度数据或权限不足，不要随便填一个 id。
    - MCP 未连通 / 拉取失败：回退让用户手动输入 id，并提示先 `/bugfix-init`。
 
-   **4.3 选择 `assigned_to`**：当前 MCP 没有用户列表工具，手动填账号或留空；
-   留空 = 不过滤（批量运行前会再次确认）。已有配置时展示当前值。
+   **4.3 选择 `assigned_to`**：
+   - 若 `.zentao-triage/bin/zentao-users.mjs` 存在，运行
+     `node .zentao-triage/bin/zentao-users.mjs`，把 `account（realname）` 作为宿主的选项让用户选；
+     不要显示密码或 token。项目 MCP 配置不在默认位置时，先设置 `ZENTAO_MCP_CONFIG=<路径>`。
+   - 脚本不存在、返回空列表或 403：回退手动输入账号。
+   - 留空 = 不过滤（批量运行前会再次确认）。已有配置时展示当前值。
 
    **4.4 自动探测 `test_cmd` / `build_cmd`（可选）**：
+   - 若 `.zentao-triage/bin/detect-commands.sh` 存在，先运行：
+     `bash .zentao-triage/bin/detect-commands.sh`
+     读取输出的 `stack` / `test_cmd` / `build_cmd` 作为建议；没有输出或脚本不存在时按下面规则扫描。
    - 扫描仓库根常见入口，给用户选项（可自定义/留空，只建议不执行）：
      - `package.json` → `npm test` / `npm run build`；有 pnpm/yarn lockfile 时用对应命令；
      - `Makefile` → `make test` / `make build`（存在对应 target 时）；

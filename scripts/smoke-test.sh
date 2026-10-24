@@ -8,6 +8,16 @@ trap 'rm -rf "$TMP"' EXIT
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
+file_url() {
+  if command -v cygpath >/dev/null 2>&1; then
+    local win
+    win="$(cygpath -m "$1")"
+    printf 'file:///%s\n' "${win#/}"
+  else
+    printf 'file://%s\n' "$1"
+  fi
+}
+
 # 场景 1：已有 .claude，且项目没有 .gitignore
 proj1="$TMP/project1"
 mkdir -p "$proj1/.claude"
@@ -17,6 +27,8 @@ for s in bugfix-init bugfix-config bugfix-run; do
 done
 grep -qxF '.zentao-triage/' "$proj1/.gitignore" || fail ".gitignore 未忽略 .zentao-triage/"
 grep -qxF '.mcp.json' "$proj1/.gitignore" || fail ".gitignore 未忽略 .mcp.json"
+[ -f "$proj1/.zentao-triage/bin/detect-commands.sh" ] || fail "缺少命令探测脚本"
+[ -f "$proj1/.zentao-triage/bin/zentao-users.mjs" ] || fail "缺少用户列表脚本"
 
 # 场景 2：已有 .cursor 和其他 .gitignore 内容
 proj2="$TMP/project2"
@@ -37,9 +49,14 @@ grep -qxF '.mcp.json' "$proj3/.gitignore" || fail "无结尾换行时未追加 .
 
 # 远程模式素材：本地 tarball / 逐文件目录，模拟无本地 skills 的 curl 安装
 tar_src="$TMP/tar-src/bug-auto-fix-skill-main"
-mkdir -p "$tar_src/skills"
+mkdir -p "$tar_src/skills" "$tar_src/scripts"
 cp -R "$ROOT/skills/." "$tar_src/skills/"
+cp "$ROOT/scripts/detect-commands.sh" "$tar_src/scripts/"
+cp "$ROOT/scripts/zentao-users.mjs" "$tar_src/scripts/"
 tar -czf "$TMP/repo.tgz" -C "$TMP/tar-src" bug-auto-fix-skill-main
+TARBALL_URL="$(file_url "$TMP/repo.tgz")"
+SKILLS_URL="$(file_url "$tar_src/skills")"
+SCRIPTS_URL="$(file_url "$tar_src/scripts")"
 remote="$TMP/remote"
 mkdir -p "$remote"
 cp "$ROOT/scripts/install.sh" "$remote/install.sh"
@@ -47,24 +64,32 @@ cp "$ROOT/scripts/install.sh" "$remote/install.sh"
 # 场景 4：指定 tarball 下载（GitHub archive 风格，含顶层目录）
 proj4="$TMP/project4"
 mkdir -p "$proj4/.claude"
-BUG_AUTO_FIX_TARBALL="file://$TMP/repo.tgz" bash "$remote/install.sh" "$proj4" >/dev/null
+BUG_AUTO_FIX_TARBALL="$TARBALL_URL" bash "$remote/install.sh" "$proj4" >/dev/null
 [ -f "$proj4/.claude/skills/bugfix-run/SKILL.md" ] || fail "tarball 下载安装失败"
 grep -qxF '.mcp.json' "$proj4/.gitignore" || fail "tarball 安装未写 .gitignore"
+[ -f "$proj4/.zentao-triage/bin/detect-commands.sh" ] || fail "tarball 安装缺少探测脚本"
+[ -f "$proj4/.zentao-triage/bin/zentao-users.mjs" ] || fail "tarball 安装缺少用户列表脚本"
 
 # 场景 5：逐文件拉取（默认 jsDelivr 分支的本地等价物）
 proj5="$TMP/project5"
 mkdir -p "$proj5/.claude"
-BUG_AUTO_FIX_SKILLS_BASE="file://$tar_src/skills" bash "$remote/install.sh" "$proj5" >/dev/null
+BUG_AUTO_FIX_SKILLS_BASE="$SKILLS_URL" \
+  BUG_AUTO_FIX_SCRIPTS_BASE="$SCRIPTS_URL" \
+  bash "$remote/install.sh" "$proj5" >/dev/null
 [ -f "$proj5/.claude/skills/bugfix-init/SKILL.md" ] || fail "逐文件下载安装失败"
 grep -qxF '.zentao-triage/' "$proj5/.gitignore" || fail "逐文件安装未写 .gitignore"
+[ -f "$proj5/.zentao-triage/bin/detect-commands.sh" ] || fail "逐文件安装缺少探测脚本"
+[ -f "$proj5/.zentao-triage/bin/zentao-users.mjs" ] || fail "逐文件安装缺少用户列表脚本"
 
 # 场景 6：bash -c（模拟 curl | bash），$0 不是脚本文件
 proj6="$TMP/project6"
 mkdir -p "$proj6/.claude"
 (
   cd "$TMP"
-  BUG_AUTO_FIX_TARBALL="file://$TMP/repo.tgz" bash -c "$(cat "$remote/install.sh")" _ "$proj6" >/dev/null
+  BUG_AUTO_FIX_TARBALL="$TARBALL_URL" bash -c "$(cat "$remote/install.sh")" _ "$proj6" >/dev/null
 )
 [ -f "$proj6/.claude/skills/bugfix-config/SKILL.md" ] || fail "bash -c 远程安装失败"
+[ -f "$proj6/.zentao-triage/bin/detect-commands.sh" ] || fail "bash -c 安装缺少探测脚本"
+[ -f "$proj6/.zentao-triage/bin/zentao-users.mjs" ] || fail "bash -c 安装缺少用户列表脚本"
 
 echo "install.sh smoke test passed"

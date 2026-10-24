@@ -78,8 +78,10 @@ description: 初始化或重置禅道 MCP 连接——检测 zentao MCP，未安
 - `--reset` 不删除 `.zentao-triage/`；重置项目配置请用 `/bugfix-config --reset`。
 
 ## 宿主差异（仓库内 `docs/hosts.md` 有完整说明）
-- Claude Code / CodeBuddy / Cursor / Windsurf / Trae / Qoder / Codex CLI 等
+- Claude Code / CodeBuddy / Cursor / Windsurf / Codex CLI 等
   可直接使用 `.mcp.json`；官方安装脚本会尝试自动写入检测到的客户端配置。
+- Trae / Qoder：按各自「设置 → MCP」添加 `zentao` 条目。
+  Qoder 实测项目 `.mcp.json` 不一定会自动注入到新会话，必须确认 `zentao_*` 工具可见。
 - 如果安装脚本没有覆盖你的宿主，按该宿主的 MCP 设置手动粘贴上面的 `zentao` 条目。
 - 提问使用当前宿主的提问机制，不假设具体工具名。
 

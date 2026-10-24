@@ -18,6 +18,8 @@ description: 拉取禅道 Bug 并自动/半自动修复——支持批量、指�
 
 ## 1. 预检闸门（任意不满足则停下并提示）
 - 调用 `zentao_health_check`：工具可用且 `authenticated=true`；否则提示先跑 `bugfix-init`。
+  若 `zentao_*` 工具根本不可见，停止并配置 MCP；**不要用临时 curl/stdio 脚本读取
+  `.mcp.json` 绕过 MCP**（凭据可能泄露到会话/日志），除非用户明确要求。
   若 `writeGates.resolveBugEnabled=false` → 提示 `/bugfix-init --reset` 开启
   `ZENTAO_ALLOW_RESOLVE_BUG` 后重启客户端。
 - 读取 `.zentao-triage/user-config.md`（若存在）并按 YAML 校验：
@@ -45,14 +47,17 @@ description: 拉取禅道 Bug 并自动/半自动修复——支持批量、指�
 - **`--pick`**：
   - 有配置：`zentao_list_bugs(scope=<scope>, id=<scope_id>, limit=<limit>, assignedTo=<assigned_to 或省略>)`；
     无配置：`zentao_list_my_bugs(limit=50)`。
-  - 自行筛 `status=active`，把候选以 `#id 标题（指派/状态）` 作为宿主的选项让用户选。
-    选项过多时先分页或让用户输入关键词过滤；不要要求用户手记 id。
-  - 选一条处理（宿主支持多选时可选多条）；每处理完一条询问「继续选下一条 / 结束」。
+  - 按 `page` 翻页直到覆盖 `total`，拉回后自行筛 `status=active`；
+    把候选以 `#id 标题（指派/状态）` 作为宿主的选项让用户选。
+    选项过多时先分页，或让用户输入关键词本地过滤；不要只展示第一页，也不要要求用户手记 id。
+  - 选一条处理；宿主支持多选时可选多条，按选择顺序逐条处理，每条独立验证/commit/resolve，
+    中途停止则保留未处理项。每处理完一条询问「继续选下一条 / 结束」。
 - **批量模式**：
   - `zentao_list_bugs(scope=<scope>, id=<scope_id>, limit=<limit>, assignedTo=<assigned_to 或省略>)`。
-  - **不要传 `status`**（该 MCP 的 status 过滤有 bug），拉回后自行筛 `status=active`。
-  - 返回条数达到 `limit` → 提示「可能还有更多」，询问继续或先调大 `limit`。
-  - 0 条 → 报告没有 active bug；若预期有，提示检查 `scope` / `scope_id` / `assigned_to`，不要臆断。
+  - **不要传 `status`**（0.2.0 实测传 `status=active` 仍会返回 resolved），拉回后自行筛 `status=active`。
+  - `limit` 是每页大小；按 `page` 翻页直到覆盖 `total`，不要只处理第一页。
+    若 `total` 很大，先询问是否缩小 `scope` / `assigned_to` 或分批处理。
+  - 0 条 active → 报告没有 active bug；若预期有，提示检查 `scope` / `scope_id` / `assigned_to`，不要臆断。
 - dry-run 只读分析，不进入修改/提交流程。
 
 ## 3. 逐条处理
@@ -118,6 +123,7 @@ description: 拉取禅道 Bug 并自动/半自动修复——支持批量、指�
   自动模式记录后继续，结束后统一收口。
 - 非 fixed 候选保持 active，直到用户明确确认；不自动 resolve，也不为了清队列硬改代码。
 - 不绕过 git hooks，不自动 push。
+- 不绕过 MCP 直连禅道或读取 `.mcp.json` 凭据；工具不可用时先修好 MCP。
 - 不提交与本 bug 无关的文件；不丢弃用户已有改动。
 - 结束给汇总：已修复 / 已 resolve、待确认结项（id / 标题 / 理由 / 建议 resolution）、
   跳过或失败原因、待补 resolve 的 commit。

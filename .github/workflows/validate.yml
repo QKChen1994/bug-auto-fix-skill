@@ -5,24 +5,39 @@ on:
 
 jobs:
   validate-skills:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
       - name: Install shellcheck
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y shellcheck
 
       - name: Shell syntax
         run: |
-          for f in scripts/install.sh scripts/smoke-test.sh scripts/validate.sh; do
+          for f in scripts/install.sh scripts/detect-commands.sh scripts/test-detect-commands.sh scripts/smoke-test.sh scripts/validate.sh; do
             bash -n "$f"
           done
 
       - name: Shellcheck
-        run: shellcheck scripts/install.sh scripts/smoke-test.sh scripts/validate.sh
+        if: runner.os == 'Linux'
+        run: shellcheck scripts/install.sh scripts/detect-commands.sh scripts/test-detect-commands.sh scripts/smoke-test.sh scripts/validate.sh
+
+      - name: Node syntax
+        run: node --check scripts/zentao-users.mjs
 
       - name: Validate SKILL.md and docs
         run: bash scripts/validate.sh
+
+      - name: Command detection tests
+        run: bash scripts/test-detect-commands.sh
 
       - name: Install smoke test
         run: bash scripts/smoke-test.sh

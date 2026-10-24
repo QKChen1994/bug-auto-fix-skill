@@ -9,11 +9,13 @@ set -euo pipefail
 #   BUG_AUTO_FIX_REPO=yourfork/bug-auto-fix-skill   （owner/repo，分支默认 main）
 #   BUG_AUTO_FIX_BRANCH=dev                          （可选，指定分支）
 #   BUG_AUTO_FIX_SKILLS_BASE=https://.../skills      （可选，逐文件拉取的基础 URL）
+#   BUG_AUTO_FIX_SCRIPTS_BASE=https://.../scripts    （可选，探测脚本下载的基础 URL）
 #   BUG_AUTO_FIX_TARBALL=https://.../repo.tgz        （可选，直接覆盖完整 tarball 地址，优先级最高）
 # 默认策略：优先从 jsDelivr 逐文件拉取（国内更稳），失败再回退 GitHub tarball。
 _REPO="${BUG_AUTO_FIX_REPO:-QKChen1994/bug-auto-fix-skill}"
 _BRANCH="${BUG_AUTO_FIX_BRANCH:-main}"
 REPO_TARBALL="${BUG_AUTO_FIX_TARBALL:-https://github.com/$_REPO/archive/refs/heads/$_BRANCH.tar.gz}"
+_SCRIPTS_BASE="${BUG_AUTO_FIX_SCRIPTS_BASE:-https://cdn.jsdelivr.net/gh/$_REPO@$_BRANCH/scripts}"
 
 TARGET="${1:-.}"
 HOST_DIR=""
@@ -96,6 +98,26 @@ for s in bugfix-init bugfix-config bugfix-run; do
   cp "$SRC/skills/$s/SKILL.md" "$HOST_DIR/$s/SKILL.md"
   echo "installed $s -> $HOST_DIR/$s"
 done
+
+# 安装可选辅助脚本（失败不影响 skill 安装）
+DETECT_DIR="$TARGET/.zentao-triage/bin"
+mkdir -p "$DETECT_DIR"
+install_helper() {
+  local name="$1"
+  local dest="$DETECT_DIR/$name"
+  if [ -f "$SRC/scripts/$name" ]; then
+    cp "$SRC/scripts/$name" "$dest"
+  elif command -v curl >/dev/null 2>&1 && curl -fsSL "$_SCRIPTS_BASE/$name" -o "$dest" 2>/dev/null; then
+    :
+  else
+    rm -f "$dest"
+  fi
+}
+install_helper detect-commands.sh
+install_helper zentao-users.mjs
+if [ -f "$DETECT_DIR/detect-commands.sh" ]; then
+  chmod +x "$DETECT_DIR/detect-commands.sh"
+fi
 
 # 确保用户本地配置与含凭据的 MCP 配置被忽略（不进开源库）
 GITIGNORE="$TARGET/.gitignore"

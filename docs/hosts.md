@@ -23,6 +23,9 @@
 > 配置 `scope` 和 `--pick` 时，skill 会先调用 `zentao_list_scopes` / `zentao_list_bugs`
 > 拉取候选，再交给宿主做选项式展示；候选过多时先分页或按关键词过滤。
 > 安装脚本还会确保目标项目的 `.gitignore` 忽略 `.zentao-triage/` 与 `.mcp.json`。
+
+> Qoder 实测：`.qoder/skills` 能自动加载；但项目根 `.mcp.json` 不一定会自动注入到新会话。
+> 需要在 Qoder「设置 → MCP」中添加 `zentao`，再用 `zentao_health_check` 确认工具可见。
 > 同时存在多个宿主目录时，`install.sh` 只装到第一个命中的目录；多宿主项目需手动复制到其余目录。
 
 ## Codex CLI 适配

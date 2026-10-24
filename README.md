@@ -54,9 +54,10 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
 >   bash -c "$(curl -fsSL https://raw.githubusercontent.com/yourfork/bug-auto-fix-skill/main/scripts/install.sh)"
 > ```
 
-`install.sh` 会做三件事：
+`install.sh` 会做四件事：
 - 探测目标项目的宿主（看是否存在 `.codebuddy` / `.cursor` / `.trae` / `.qoder` / `.claude` / `.codex` 等目录），找不到则默认按 Claude Code 布局；
 - 把 `skills/{bugfix-init,bugfix-config,bugfix-run}/SKILL.md` 复制到 `<项目根>/<宿主>/skills/<name>/SKILL.md`；
+- 把可选辅助脚本安装到 `.zentao-triage/bin/`（test/build 探测、指派人列表；下载失败不影响安装）；
 - 确保目标项目 `.gitignore` 忽略 `.zentao-triage/` 与 `.mcp.json`（没有 `.gitignore` 则创建），避免本地配置和禅道凭据进版本库。
 
 > 同时存在多个宿主目录时，`install.sh` 只装到按上述顺序第一个命中的目录；多宿主项目请手动复制或分别安装。
@@ -97,7 +98,8 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
 
 - **凭据只在 MCP 配置**：`ZENTAO_*` 写在 `.mcp.json`（由安装脚本加入 `.gitignore`），绝不进 skill 文件，也不提交。
 - **用户配置独立存储且校验**：`bugfix-config` 写到 `<项目根>/.zentao-triage/user-config.md`（YAML，gitignore）。先用 `zentao_list_scopes` 拉取产品/项目/执行列表，以 `名称(id=...)` 选项让用户选，再校验 `scope`、`scope_id`、`limit`、`commit_prefix` 等字段。支持 `product` / `project` / `execution` 三种维度；`project` / `execution` 要求 Bug 已关联到对应范围。
-- **命令与测试条件有建议值**：`test_cmd` / `build_cmd` 会扫描 `package.json`、`Makefile`、`go.mod`、`pom.xml`、`build.gradle`、`pyproject.toml`、`Cargo.toml` 等给出建议，用户可自定义或留空。
+- **命令与测试条件有建议值**：`test_cmd` / `build_cmd` 优先运行 `.zentao-triage/bin/detect-commands.sh`，扫描 `package.json`、`Makefile`、`go.mod`、`pom.xml`、`build.gradle`、`pyproject.toml`、`Cargo.toml` 等给出建议，用户可自定义或留空。
+- **指派人可从禅道选择**：`.zentao-triage/bin/zentao-users.mjs` 读取 MCP 配置并列出 `account（realname）`，供 `assigned_to` 选择；无权限或脚本不可用时回退手动输入/留空。
 - **`test_cmd` / `build_cmd` 均为可选**：
   - 有 `test_cmd` → 作为 `fixed` 的强验证闸门；
   - 无 `test_cmd` 有 `build_cmd` → 轻量兜底；
@@ -107,12 +109,12 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
 - **待确认结项会落盘**：例如 10 条 bug 中 2 条判为 bydesign，其余 8 条照常修复并 resolve；这 2 条保持 active，在会话汇总和 `.zentao-triage/runs/<时间戳>.md` 的 `## 待确认结项` 中列出 id、标题、理由和建议 resolution。
 - **提交纪律**：开跑记录 `git status` 基线；每个 bug 只 stage 自己改动的文件；不 `git add -A`、不绕过 hooks、不自动 push；失败的 bug 残留改动必须显式处理。
 - **幂等与运行日志**：修复前用 commit 前缀查历史提交，避免重复 commit；commit 成功但 resolve 失败时可重跑补结项；每次运行写 `.zentao-triage/runs/<时间戳>.md`。
-- **默认拉取有上限**：`limit` 默认 50，达到上限会提示可能还有更多；`assigned_to` 留空时会二次确认是否处理所有人的 bug。
+- **列表分页与过滤**：`limit` 是每页大小（默认 50），运行时会按 `total` 翻页拉全；列表过大时先按关键词过滤或缩小 `scope` / `assigned_to`。`assigned_to` 留空时会二次确认是否处理所有人的 bug。
 
 ## 宿主支持
 
 详见 [`docs/hosts.md`](docs/hosts.md)。Claude Code / CodeBuddy / Cursor / Windsurf 为一等支持；
-Codex CLI 用 `AGENTS.md` 注入 + 官方 `install.sh`；Trae / Qoder 按各自 MCP 设置粘贴 `.mcp.json` 即可。
+Codex CLI 用 `AGENTS.md` 注入 + 官方 `install.sh`；Trae / Qoder 需在客户端「设置 → MCP」添加 `zentao`（Qoder 实测项目 `.mcp.json` 不保证自动加载）。
 skill 内的用户确认使用宿主自身的提问机制，不绑定具体工具名。
 
 ## 目录结构
@@ -132,6 +134,9 @@ bugAutoFixSkill/
 │   └── user-config.example.md
 ├── scripts/
 │   ├── install.sh          # 探测宿主、复制 skill、维护 gitignore
+│   ├── detect-commands.sh  # 探测 test/build 命令建议
+│   ├── test-detect-commands.sh
+│   ├── zentao-users.mjs    # 读取禅道用户列表（assigned_to 选择）
 │   ├── smoke-test.sh       # 安装脚本冒烟测试
 │   └── validate.sh         # SKILL.md 与文档一致性校验
 └── docs/
