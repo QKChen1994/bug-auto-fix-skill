@@ -115,6 +115,7 @@ install_helper() {
 }
 install_helper detect-commands.sh
 install_helper zentao-users.mjs
+install_helper find-fixed-unresolved.mjs
 if [ -f "$DETECT_DIR/detect-commands.sh" ]; then
   chmod +x "$DETECT_DIR/detect-commands.sh"
 fi
@@ -138,4 +139,4 @@ ensure_ignored() {
 ensure_ignored '.zentao-triage/' '^/?\.zentao-triage/?$'
 ensure_ignored '.mcp.json' '^/?\.mcp\.json$'
 
-echo "Done. 接下来：运行 /bugfix-init -> /bugfix-config -> /bugfix-run"
+echo "Done. 重启客户端后直接运行 /bugfix-run；若提示未配置 MCP，先运行 /bugfix-init。"

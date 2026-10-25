@@ -29,6 +29,7 @@ grep -qxF '.zentao-triage/' "$proj1/.gitignore" || fail ".gitignore 未忽略 .z
 grep -qxF '.mcp.json' "$proj1/.gitignore" || fail ".gitignore 未忽略 .mcp.json"
 [ -f "$proj1/.zentao-triage/bin/detect-commands.sh" ] || fail "缺少命令探测脚本"
 [ -f "$proj1/.zentao-triage/bin/zentao-users.mjs" ] || fail "缺少用户列表脚本"
+[ -f "$proj1/.zentao-triage/bin/find-fixed-unresolved.mjs" ] || fail "缺少审计 helper"
 
 # 场景 2：已有 .cursor 和其他 .gitignore 内容
 proj2="$TMP/project2"
@@ -53,6 +54,7 @@ mkdir -p "$tar_src/skills" "$tar_src/scripts"
 cp -R "$ROOT/skills/." "$tar_src/skills/"
 cp "$ROOT/scripts/detect-commands.sh" "$tar_src/scripts/"
 cp "$ROOT/scripts/zentao-users.mjs" "$tar_src/scripts/"
+cp "$ROOT/scripts/find-fixed-unresolved.mjs" "$tar_src/scripts/"
 tar -czf "$TMP/repo.tgz" -C "$TMP/tar-src" bug-auto-fix-skill-main
 TARBALL_URL="$(file_url "$TMP/repo.tgz")"
 SKILLS_URL="$(file_url "$tar_src/skills")"
@@ -69,6 +71,7 @@ BUG_AUTO_FIX_TARBALL="$TARBALL_URL" bash "$remote/install.sh" "$proj4" >/dev/nul
 grep -qxF '.mcp.json' "$proj4/.gitignore" || fail "tarball 安装未写 .gitignore"
 [ -f "$proj4/.zentao-triage/bin/detect-commands.sh" ] || fail "tarball 安装缺少探测脚本"
 [ -f "$proj4/.zentao-triage/bin/zentao-users.mjs" ] || fail "tarball 安装缺少用户列表脚本"
+[ -f "$proj4/.zentao-triage/bin/find-fixed-unresolved.mjs" ] || fail "tarball 安装缺少审计 helper"
 
 # 场景 5：逐文件拉取（默认 jsDelivr 分支的本地等价物）
 proj5="$TMP/project5"
@@ -80,6 +83,7 @@ BUG_AUTO_FIX_SKILLS_BASE="$SKILLS_URL" \
 grep -qxF '.zentao-triage/' "$proj5/.gitignore" || fail "逐文件安装未写 .gitignore"
 [ -f "$proj5/.zentao-triage/bin/detect-commands.sh" ] || fail "逐文件安装缺少探测脚本"
 [ -f "$proj5/.zentao-triage/bin/zentao-users.mjs" ] || fail "逐文件安装缺少用户列表脚本"
+[ -f "$proj5/.zentao-triage/bin/find-fixed-unresolved.mjs" ] || fail "逐文件安装缺少审计 helper"
 
 # 场景 6：bash -c（模拟 curl | bash），$0 不是脚本文件
 proj6="$TMP/project6"
@@ -91,5 +95,6 @@ mkdir -p "$proj6/.claude"
 [ -f "$proj6/.claude/skills/bugfix-config/SKILL.md" ] || fail "bash -c 远程安装失败"
 [ -f "$proj6/.zentao-triage/bin/detect-commands.sh" ] || fail "bash -c 安装缺少探测脚本"
 [ -f "$proj6/.zentao-triage/bin/zentao-users.mjs" ] || fail "bash -c 安装缺少用户列表脚本"
+[ -f "$proj6/.zentao-triage/bin/find-fixed-unresolved.mjs" ] || fail "bash -c 安装缺少审计 helper"
 
 echo "install.sh smoke test passed"

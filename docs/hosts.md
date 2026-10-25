@@ -23,6 +23,8 @@
 > 配置 `scope` 和 `--pick` 时，skill 会先调用 `zentao_list_scopes` / `zentao_list_bugs`
 > 拉取候选，再交给宿主做选项式展示；候选过多时先分页或按关键词过滤。
 > Qoder / Claude Code 的 `AskUserQuestion` 支持 `multiSelect`，`--pick` 会优先启用多选。
+> 审计是 `/bugfix-run --audit` 的只读模式，所有支持 run 的宿主通用；不需要额外的
+> skill 注入位置，也不要求 `ZENTAO_ALLOW_RESOLVE_BUG=true`。
 > 安装脚本还会确保目标项目的 `.gitignore` 忽略 `.zentao-triage/` 与 `.mcp.json`。
 
 > Qoder 实测：`.qoder/skills` 能自动加载；但项目根 `.mcp.json` 不一定会自动注入到新会话。

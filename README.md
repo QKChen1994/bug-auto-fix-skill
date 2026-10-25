@@ -3,20 +3,50 @@
 把「读禅道 Bug → 定位 → 修复 → 验证 → 提交 → 回写 resolved」的闭环做成**与宿主无关**的
 AI 编码 agent skill，支持 CodeBuddy / Claude Code / Cursor / Windsurf / Codex CLI / Trae / Qoder。
 
+**run-first**：日常只需要记住 `/bugfix-run`。没有配置也能先处理「我的 active bug」；
+想按产品/项目/执行扫描时，再在菜单里做一次轻量范围配置。审计「已修复未结项」用
+`/bugfix-run --audit`，严格只读，不新增第四个命令。
+
 禅道连接基于开源 MCP server [`ceeyang/zentao_mcp`](https://github.com/ceeyang/zentao_mcp)（MIT），
 使用 `ZENTAO_URL` 等环境变量；MCP 由 `/bugfix-init` 通过官方 `install.sh` 安装。
 
-## 三个真实 skill 命令
+## 三个命令（日常只记 `/bugfix-run`）
 
-| 命令 | 作用 |
-|---|---|
-| `/bugfix-init` | 检测/安装禅道 MCP（官方 `install.sh`），引导配置 `ZENTAO_URL` / 账号 / 密码与 `ZENTAO_ALLOW_RESOLVE_BUG`；`--reset` 只重写 `zentao` 条目 |
-| `/bugfix-config` | 从禅道拉取产品/项目/执行列表供选择，设置 `scope`+`scope_id`、`assigned_to`、`test_cmd`/`build_cmd`/`commit_prefix`/`limit`，存到 `.zentao-triage/user-config.md`（YAML，不提交）；支持 `--show` / `--reset` |
-| `/bugfix-run` | 预检后批量拉取 active bug，或处理指定 bug（`/bugfix-run <id>`），或从列表选一条（`--pick`）；支持 `--dry-run` / `--no-resolve` |
+| 命令 | 作用 | 使用频率 |
+|---|---|---|
+| `/bugfix-run` | **主入口**：无参数菜单；处理我的 active bug、按范围批量、从列表选、指定多条 id、只读审计（`--audit`）；支持 `--my` / `--dry-run` / `--no-resolve` | 日常 |
+| `/bugfix-init` | 检测/安装禅道 MCP（官方 `install.sh`），配置 `ZENTAO_URL` / 账号 / 密码与 `ZENTAO_ALLOW_RESOLVE_BUG`；`--reset` 只重写 `zentao` 条目 | 首次/重置/排障 |
+| `/bugfix-config` | 精细配置：从禅道拉取产品/项目/执行列表，设置 `scope`+`scope_id`、`assigned_to`、`test_cmd`/`build_cmd`/`commit_prefix`/`limit`；支持 `--show` / `--reset` | 高级调整 |
+
+`bugfix-config` 写到 `.zentao-triage/user-config.md`（YAML，不提交）。首次使用可以不创建
+这个文件：`/bugfix-run` 会默认使用当前账号的 active bug；选择「配置范围后修复」时也会做一次
+最小的范围配置。
+
+## 快速开始
+
+```bash
+# 1. 安装 skill，然后重启/刷新 AI 客户端
+bash scripts/install.sh /path/to/your/project
+
+# 2. 直接运行主入口
+/bugfix-run
+```
+
+首次使用如果检测不到 MCP，`/bugfix-run` 会提示先运行一次 `/bugfix-init`：
+
+```bash
+/bugfix-init      # 装 MCP + 填凭据
+# 重启客户端，让 zentao_* 工具生效
+/bugfix-run
+```
+
+之后日常只需要 `/bugfix-run`。需要按项目扫描、设置 test/build 或提交模板时，再运行
+`/bugfix-config`。
 
 ## 安装
 
-本 skill 是一组纯 Markdown 的 `SKILL.md` 运行手册，安装本质就是把这三个文件复制到目标项目的宿主 `skills/` 目录，并确保用户本地配置与含凭据的 MCP 配置被 gitignore。
+本 skill 是一组 Markdown 运行手册；安装本质是把三个 `SKILL.md` 复制到目标项目的宿主
+`skills/` 目录，并确保用户配置与含凭据的 MCP 配置被 gitignore。
 
 ### 方式 A：克隆后本地安装（推荐，方便后续更新）
 
@@ -54,10 +84,11 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
 >   bash -c "$(curl -fsSL https://raw.githubusercontent.com/yourfork/bug-auto-fix-skill/main/scripts/install.sh)"
 > ```
 
-`install.sh` 会做四件事：
+`install.sh` 会做这些事：
+
 - 探测目标项目的宿主（看是否存在 `.codebuddy` / `.cursor` / `.trae` / `.qoder` / `.claude` / `.codex` 等目录），找不到则默认按 Claude Code 布局；
 - 把 `skills/{bugfix-init,bugfix-config,bugfix-run}/SKILL.md` 复制到 `<项目根>/<宿主>/skills/<name>/SKILL.md`；
-- 把可选辅助脚本安装到 `.zentao-triage/bin/`（test/build 探测、指派人列表；下载失败不影响安装）；
+- 把可选辅助脚本安装到 `.zentao-triage/bin/`（test/build 探测、指派人列表、审计 helper；下载失败不影响安装）；
 - 确保目标项目 `.gitignore` 忽略 `.zentao-triage/` 与 `.mcp.json`（没有 `.gitignore` 则创建），避免本地配置和禅道凭据进版本库。
 
 > 同时存在多个宿主目录时，`install.sh` 只装到按上述顺序第一个命中的目录；多宿主项目请手动复制或分别安装。
@@ -68,26 +99,60 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
 
 安装后**重启或刷新你的 AI 客户端**，让新复制的 skill 与 `/bugfix-init` 生成的 MCP 工具生效。
 
-## 快速开始（使用）
+## 使用
 
-在 AI 客户端里依次运行三条命令：
+### 主入口
 
 ```bash
-/bugfix-init      # 装 MCP + 填凭据（需重启客户端让工具生效）
-/bugfix-config    # 设产品/项目与指派人
-/bugfix-run       # 拉 bug 自动/半自动修复
+/bugfix-run                  # 菜单：按当前配置/无配置自适应
+/bugfix-run --my             # 处理我的 active bug
+/bugfix-run 1234 1235        # 指定多条，按顺序逐条修复
+/bugfix-run --pick           # 从 active 列表选择，可多选
+/bugfix-run <bugId> [<bugId> ...]   # 显式多 id 用法
 ```
 
-只处理一条 / 先看方案 / 修完不写禅道：
+无参数时：
+
+- **有配置**：批量修复当前范围 / 从列表选择 / 审计已修复未结项。
+- **没有配置**：修复我的 active bug / 配置范围后修复 / 审计已修复未结项。
+
+「配置范围后修复」只采集 `scope`、`scope_id`、`assigned_to`，其余用默认值；`test_cmd`、
+`build_cmd`、`commit_prefix`、`limit` 可之后用 `/bugfix-config` 精细调整。
+
+### 审计已修复未结项（只读）
 
 ```bash
-/bugfix-run --pick      # 从 active bug 列表选一条，可继续选
-/bugfix-run 1234        # 直接指定 id
+/bugfix-run --audit          # 按配置范围审计；无配置时审计我的 bug
+/bugfix-run --audit --my     # 强制审计我的 active bug
+```
+
+审计只做四件事：拉 active bug、用 `commit_prefix` 交叉核对 git 历史、分类、出报告。
+它**不改代码、不跑 test/build、不写禅道、不切分支**，也不要求
+`ZENTAO_ALLOW_RESOLVE_BUG=true`。
+
+报告写到 `.zentao-triage/runs/<时间戳>-audit.md`，分三组：
+
+- **可补结项**：当前分支已包含、非空、非 merge/revert 的修复 commit；
+- **需确认**：仅在其他分支、空提交、合并提交、Revert、修复后重新激活、rework 等；
+- **未发现修复提交**：只列 id 和数量。
+
+报告末尾给出交接命令：
+
+```bash
+/bugfix-run 149 152
+```
+
+`bugfix-run` 会按顺序复核、跑验证并补 resolve。审计只认 commit 前缀；squash / rebase
+后前缀丢失、修复提交在未 fetch 的远端、浅克隆历史不完整都会漏报，报告里会写明。
+
+### 只分析 / 不回写
+
+```bash
 /bugfix-run 1234 --dry-run
-/bugfix-run 1234 --no-resolve
+/bugfix-run 1234 1235 --no-resolve
 ```
 
-查看或重置配置：
+### 高级配置
 
 ```bash
 /bugfix-config --show
@@ -96,26 +161,31 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
 
 ## 设计要点
 
-- **凭据只在 MCP 配置**：`ZENTAO_*` 写在 `.mcp.json`（由安装脚本加入 `.gitignore`），绝不进 skill 文件，也不提交。
+- **run-first，配置可选**：没有配置也能处理我的 active bug；按范围扫描时才需要一次轻量配置。`test_cmd` / `build_cmd` 均可为空；都为空时，自动模式降级为「每修一个仍需人工确认」，避免无验证谎称修复。
+- **审计严格只读**：`--audit` 只调用 `zentao_health_check` / `zentao_list_bugs` / `zentao_list_my_bugs` / `zentao_get_bug`，只使用只读 git 命令；报告和临时文件只写 `.zentao-triage/`。
+- **提交前缀可核对**：`commit_prefix` 默认 `fix(zentao-#{id}): `，必须包含且只包含一个 `{id}`；审计和幂等检查都用它匹配 commit。修复前会查历史提交，避免重复 commit。
+- **分支可达性**：审计区分「当前分支已包含」和「仅在其他分支」；只有前者进入可补结项。空提交、merge、revert 和修复后重新激活都会降级为需确认。
 - **用户配置独立存储且校验**：`bugfix-config` 写到 `<项目根>/.zentao-triage/user-config.md`（YAML，gitignore）。先用 `zentao_list_scopes` 拉取产品/项目/执行列表，以 `名称(id=...)` 选项让用户选，再校验 `scope`、`scope_id`、`limit`、`commit_prefix` 等字段。支持 `product` / `project` / `execution` 三种维度；`project` / `execution` 要求 Bug 已关联到对应范围。
 - **命令与测试条件有建议值**：`test_cmd` / `build_cmd` 优先运行 `.zentao-triage/bin/detect-commands.sh`，扫描 `package.json`、`Makefile`、`go.mod`、`pom.xml`、`build.gradle`、`composer.json`、`Gemfile`、`pyproject.toml`、`Cargo.toml` 及 monorepo 配置给出建议，用户可自定义或留空。
 - **指派人可从禅道选择**：`.zentao-triage/bin/zentao-users.mjs` 读取 MCP 配置并列出 `account（realname）`，供 `assigned_to` 选择；无权限或脚本不可用时回退手动输入/留空。
-- **`test_cmd` / `build_cmd` 均为可选**：
-  - 有 `test_cmd` → 作为 `fixed` 的强验证闸门；
-  - 无 `test_cmd` 有 `build_cmd` → 轻量兜底；
-  - 两者皆无 → 自动模式降级为「每修一个仍需人工确认」，避免无验证谎称修复。
 - **自动模式有边界且不阻塞**：只有 `fixed` 且验证通过才自动提交并 resolve；`bydesign` / `tostory` 等非 fixed 结项不会自动 resolve，也不会卡住后续 bug——自动模式先记录到「待确认结项」队列并继续，结束后统一展示。
-- **单条修复**：`/bugfix-run <bugId>` 直接指定，或用 `/bugfix-run --pick` 从 active bug 列表选择（不记得 id 也能用；宿主支持 `multiSelect` 时可多选）；`--dry-run` 只出方案，`--no-resolve` 只提交不回写。
+- **单条 / 多 id / 列表选择**：`/bugfix-run <bugId>` 直接指定；`/bugfix-run <id> <id>` 按顺序逐条处理；`--pick` 从 active 列表选择（宿主支持 `multiSelect` 时可多选）；`--dry-run` 只出方案，`--no-resolve` 只提交不回写。
 - **待确认结项会落盘**：例如 10 条 bug 中 2 条判为 bydesign，其余 8 条照常修复并 resolve；这 2 条保持 active，在会话汇总和 `.zentao-triage/runs/<时间戳>.md` 的 `## 待确认结项` 中列出 id、标题、理由和建议 resolution。
 - **提交纪律**：开跑记录 `git status` 基线；每个 bug 只 stage 自己改动的文件；不 `git add -A`、不绕过 hooks、不自动 push；失败的 bug 残留改动必须显式处理。
 - **幂等与运行日志**：修复前用 commit 前缀查历史提交，避免重复 commit；commit 成功但 resolve 失败时可重跑补结项；每次运行写 `.zentao-triage/runs/<时间戳>.md`。
 - **列表分页与过滤**：`limit` 是每页大小（默认 50），运行时会按 `total` 翻页拉全；列表过大时先按关键词过滤或缩小 `scope` / `assigned_to`。`assigned_to` 留空时会二次确认是否处理所有人的 bug。
+- **审计 helper 可回退**：优先使用 `.zentao-triage/bin/find-fixed-unresolved.mjs`（一次 `git log --all` 扫描）；缺失时回退逐条 `git log`，功能可用但较慢。
+
+完整设计见 [`docs/design/bugfix-audit.md`](docs/design/bugfix-audit.md)。
 
 ## 宿主支持
 
 详见 [`docs/hosts.md`](docs/hosts.md)。Claude Code / CodeBuddy / Cursor / Windsurf 为一等支持；
 Codex CLI 用 `AGENTS.md` 注入 + 官方 `install.sh`；Trae / Qoder 需在客户端「设置 → MCP」添加 `zentao`（Qoder 实测项目 `.mcp.json` 不保证自动加载）。
 skill 内的用户确认使用宿主自身的提问机制，不绑定具体工具名。
+
+审计是 `/bugfix-run --audit` 的只读模式，不需要额外的 skill 注入位置，也不要求
+`ZENTAO_ALLOW_RESOLVE_BUG`；所有支持 run 的宿主都可以用。
 
 ## 目录结构
 
@@ -137,10 +207,14 @@ bugAutoFixSkill/
 │   ├── detect-commands.sh  # 探测 test/build 命令建议
 │   ├── test-detect-commands.sh
 │   ├── zentao-users.mjs    # 读取禅道用户列表（assigned_to 选择）
+│   ├── find-fixed-unresolved.mjs      # 审计：按 commit 前缀匹配 bug
+│   ├── test-find-fixed-unresolved.mjs
 │   ├── smoke-test.sh       # 安装脚本冒烟测试
 │   └── validate.sh         # SKILL.md 与文档一致性校验
 └── docs/
-    └── hosts.md            # 各宿主安装说明
+    ├── hosts.md            # 各宿主安装说明
+    └── design/
+        └── bugfix-audit.md # run-first 与只读审计设计
 ```
 
 运行时生成（不提交）：`.zentao-triage/user-config.md`、`.zentao-triage/runs/`、`.mcp.json`。

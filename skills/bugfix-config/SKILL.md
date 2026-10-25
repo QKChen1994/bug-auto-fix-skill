@@ -1,10 +1,13 @@
 ---
 name: bugfix-config
-version: 1.2.0
-description: 配置、查看或重置禅道筛选与校验条件——从禅道拉取 scope 列表供选择，配置 assigned_to、test_cmd/build_cmd/commit_prefix/limit，写入 .zentao-triage/user-config.md（按 YAML 解析，不提交）；支持 --show 与 --reset。
+version: 1.3.0
+description: 精细配置、查看或重置禅道筛选与校验条件——从禅道拉取 scope 列表供选择，配置 assigned_to、test_cmd/build_cmd/commit_prefix/limit，写入 .zentao-triage/user-config.md（按 YAML 解析，不提交）；支持 --show 与 --reset。
 ---
 
 # bugfix-config：设置项目、指派人与校验配置
+
+> 本命令用于精细调整、查看或重置。首次使用可以直接运行 `/bugfix-run`，
+> 按菜单做轻量范围配置；需要 test/build、指派人或提交模板等高级设置时再来这里。
 
 ## 参数
 - 无参数：创建配置；已存在时询问「修改 / 取消」。
@@ -22,7 +25,7 @@ description: 配置、查看或重置禅道筛选与校验条件——从禅道�
 | `assigned_to` | 否 | 字符串，默认 `""` | 禅道账号；对应 MCP 的 `assignedTo`；留空 = 不过滤，运行前会再次确认 |
 | `test_cmd` | 否 | 字符串，默认 `""` | 强验证命令；为空时不能静默自动 resolve |
 | `build_cmd` | 否 | 字符串，默认 `""` | 无测试时的轻量兜底校验 |
-| `commit_prefix` | 否 | 默认 `fix(zentao-#{id}): ` | 提交信息模板；**必须包含 `{id}`**，运行时替换为 bug id |
+| `commit_prefix` | 否 | 默认 `fix(zentao-#{id}): ` | 提交信息模板；**必须包含且只包含一个 `{id}`**，运行时替换为 bug id |
 | `limit` | 否 | 正整数，默认 `50` | 每页大小；运行时会按 `total` 翻页拉全 |
 
 > 只处理单条 bug 时可以不创建本配置（`/bugfix-run <id>` 使用默认值）；
@@ -113,7 +116,7 @@ limit: 50
 5. **校验规则**（写前和运行前都要检查）：
    - `scope` 必须是 `product` / `project` / `execution` 之一；
    - `scope_id`、`limit` 必须是正整数；
-   - `commit_prefix` 必须是非空字符串且包含 `{id}`；建议保留固定文本（如 `zentao-#`），便于 `git log` 精确匹配；
+   - `commit_prefix` 必须是非空字符串且恰好包含一个 `{id}`；建议保留固定文本（如 `zentao-#`），便于 `git log` 精确匹配；
    - `test_cmd` / `build_cmd` / `assigned_to` 必须是字符串（可为空）。
    - 校验失败时不要写入，指出字段并给出修复建议。
 

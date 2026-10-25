@@ -7,7 +7,7 @@ scope_id: 1
 assigned_to: ""
 test_cmd: ""
 build_cmd: ""
-# {id} 会被替换为 bug id；必须保留占位符。
+# 必须包含且只包含一个 {id}；会被替换为 bug id。
 commit_prefix: "fix(zentao-#{id}): "
 # 每页大小；运行时按 total 翻页
 limit: 50

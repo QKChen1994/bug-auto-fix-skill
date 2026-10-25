@@ -27,7 +27,7 @@ for f in "$ROOT"/skills/*/SKILL.md; do
   [ -z "$name" ] || echo "OK: $dir (name=$name, version=${version:-?})"
 done
 
-# README 与 AGENTS.md 必须覆盖三个命令名，避免文档漂移
+# README 与 AGENTS.md 必须覆盖三个命令名与 run-first 用法，避免文档漂移
 for doc in "$ROOT/README.md" "$ROOT/examples/AGENTS.md"; do
   if [ ! -f "$doc" ]; then
     echo "FAIL: 缺少 $doc"; fail=1; continue
@@ -37,7 +37,20 @@ for doc in "$ROOT/README.md" "$ROOT/examples/AGENTS.md"; do
       echo "FAIL: $doc 未提及 $cmd"; fail=1
     fi
   done
+  for flag in --audit --my; do
+    if ! grep -q -- "$flag" "$doc"; then
+      echo "FAIL: $doc 未提及 $flag"; fail=1
+    fi
+  done
+  if ! grep -qE '/bugfix-run <bugId> \[<bugId>' "$doc"; then
+    echo "FAIL: $doc 未提及多 id 用法"; fail=1
+  fi
 done
+
+# 审计是 run 的只读模式，不应再出现独立的 bugfix-triage 入口
+if grep -Rqs 'bugfix-triage' "$ROOT/README.md" "$ROOT/examples" "$ROOT/skills"; then
+  echo "FAIL: 发现已废弃的 bugfix-triage 入口"; fail=1
+fi
 
 # 提问必须使用宿主无关描述，不能硬编码某个宿主的工具名
 if grep -Rqs "ask_followup_question" "$ROOT/skills" "$ROOT/examples" "$ROOT/README.md" "$ROOT/docs"; then

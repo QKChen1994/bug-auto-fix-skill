@@ -33,6 +33,14 @@ jobs:
       - name: Node syntax
         run: node --check scripts/zentao-users.mjs
 
+      - name: Node helper syntax
+        run: |
+          node --check scripts/find-fixed-unresolved.mjs
+          node --check scripts/test-find-fixed-unresolved.mjs
+
+      - name: Audit helper tests
+        run: node --test scripts/test-find-fixed-unresolved.mjs
+
       - name: Validate SKILL.md and docs
         run: bash scripts/validate.sh
 
