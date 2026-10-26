@@ -45,8 +45,10 @@ bash scripts/install.sh /path/to/your/project
 
 ## 安装
 
-本 skill 是一组 Markdown 运行手册；安装本质是把三个 `SKILL.md` 复制到目标项目的宿主
-`skills/` 目录，并确保用户配置与含凭据的 MCP 配置被 gitignore。
+本 skill 是一组 Markdown 运行手册。安装采用**唯一权威源 + 软链接**：三个 `SKILL.md` 只存一份，
+放在项目的 `.agents/skills/`（跨工具约定，Codex / Copilot / Gemini / Cursor / DeepSeek Harness 原生读取）；
+不原生读该目录的宿主（Claude Code / Qoder / Trae / CodeBuddy / ZCode）按「每个 skill 一条相对软链接」
+指回权威源，因此不存在多份副本互相漂移。
 
 ### 方式 A：克隆后本地安装（推荐，方便后续更新）
 
@@ -86,12 +88,28 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
 
 `install.sh` 会做这些事：
 
-- 探测目标项目的宿主（看是否存在 `.codebuddy` / `.cursor` / `.trae` / `.qoder` / `.claude` / `.codex` 等目录），找不到则默认按 Claude Code 布局；
-- 把 `skills/{bugfix-init,bugfix-config,bugfix-run}/SKILL.md` 复制到 `<项目根>/<宿主>/skills/<name>/SKILL.md`；
+- 把三个 skill 写入权威源 `<项目根>/.agents/skills/<name>/SKILL.md`；
+- 探测项目里存在的宿主目录（`.claude` / `.qoder` / `.trae` / `.codebuddy` / `.cursor` / `.codex` / `.dsh` …），
+  给**所有**不原生读 `.agents/skills` 的宿主建软链接（不再只装第一个命中的）；一个都没探测到时默认按 Claude Code 布局；
+- 目标位置已有真实目录时：内容一致就替换成链接；内容不同先备份成 `<name>.bak-<时间戳>` 再替换，不会静默吞掉你手改的内容；
 - 把可选辅助脚本安装到 `.zentao-triage/bin/`（test/build 探测、指派人列表、审计 helper；下载失败不影响安装）；
 - 确保目标项目 `.gitignore` 忽略 `.zentao-triage/` 与 `.mcp.json`（没有 `.gitignore` 则创建），避免本地配置和禅道凭据进版本库。
 
-> 同时存在多个宿主目录时，`install.sh` 只装到按上述顺序第一个命中的目录；多宿主项目请手动复制或分别安装。
+### 安装选项
+
+```bash
+# 跨项目共享一份：装到 ~/.agents/skills，只给已存在的宿主目录建链接
+bash scripts/install.sh --user
+
+# 用复制代替软链接（Windows 未开开发者模式，或想单独排查问题时）
+bash scripts/install.sh /path/to/project --copy
+
+# 只给指定宿主建链接
+bash scripts/install.sh /path/to/project --hosts claude,qoder
+```
+
+> `.agents/skills/` 建议随业务项目提交，团队成员就能共享同一份 skill；
+> 本仓库把它加进了 `.gitignore`，因为这里就是 skill 的源，自装只会产生本地副本。
 
 > 各宿主具体的 skill 注入位置与 MCP 配置方式，见 [`docs/hosts.md`](docs/hosts.md)。
 
@@ -171,9 +189,9 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
 - **分支可达性**：审计区分「当前分支已包含」和「仅在其他分支」；只有前者进入可补结项。空提交、merge、revert 和修复后重新激活都会降级为需确认。
 - **用户配置独立存储且校验**：`bugfix-config` 写到 `<项目根>/.zentao-triage/user-config.md`（YAML，gitignore）。先用 `zentao_list_scopes` 拉取产品/项目/执行列表，以 `名称(id=...)` 选项让用户选，再校验 `scope`、`scope_id`、`limit`、`commit_prefix` 等字段。支持 `product` / `project` / `execution` 三种维度；`project` / `execution` 要求 Bug 已关联到对应范围。
 - **候选必须展示全量**：scope 和指派人候选都来自禅道实际列表；默认项/推荐项只能在标签中标注，不能只给默认项和推荐项，也不能隐藏其他候选。宿主单次选项数有限时分批展示或按关键词过滤。
-- **默认只处理当前账号**：`assigned_to` 默认当前登录账号（`zentao-users.mjs` 的 `currentUser`）；只有用户明确选择「全部指派人」时才留空，并二次确认。定时巡检/自动任务同样默认当前账号。
+- **默认只处理当前账号，且以 MCP 实际身份为准**：`assigned_to` 默认当前登录账号，账号取自 `zentao_list_my_bugs` 的 `assignedTo`（会话真正连的那个禅道），`.zentao-triage/bin/zentao-users.mjs` 只负责补姓名和 `--keyword` 搜索，并输出 `configPath` 说明它读了哪个配置文件。两边不一致时会把两个账号和配置文件路径一起摆出来让你确认，不会静默写错账号。只有明确选择「全部指派人」时才留空，并二次确认。定时巡检/自动任务同样默认当前账号。
 - **命令与测试条件有建议值**：`test_cmd` / `build_cmd` 优先运行 `.zentao-triage/bin/detect-commands.sh`，扫描 `package.json`、`Makefile`、`go.mod`、`pom.xml`、`build.gradle`、`composer.json`、`Gemfile`、`pyproject.toml`、`Cargo.toml` 及 monorepo 配置给出建议，用户可自定义或留空。
-- **指派人可从禅道选择**：`.zentao-triage/bin/zentao-users.mjs` 读取 MCP 配置并列出 `account（realname）`，同时标记 `currentUser`；无权限或脚本不可用时用 `zentao_list_my_bugs` 的 `assignedTo` 推断当前账号，仍无法确定就询问用户，不回退到全量。
+- **指派人可从禅道选择**：`.zentao-triage/bin/zentao-users.mjs` 默认只输出 `currentAccount` / `currentUser` 和 `totalUsers`，不会把整份名单灌进上下文；换人用 `--keyword <账号或姓名子串>` 过滤，确认要看全部才用 `--list`。脚本不可用时用 `zentao_list_my_bugs` 的 `assignedTo` 推断当前账号，仍无法确定就询问用户，不回退到全量。
 - **默认全自动，不弹模式确认**：`/bugfix-run` 直接按「修复 → 验证 → commit → resolve → 指派回创建人」跑完，不再询问执行模式；需要逐条把关时加 `--noauto`。唯一会打破全自动的验证类情况是 `test_cmd` 和 `build_cmd` 都为空（没有任何验证手段），此时自动降级为逐条确认并在日志说明，避免无验证谎称修复。
 - **AI 只判定 fixed，不阻塞队列**：只有确实改了代码并通过验证的 bug 才会 commit + resolve(fixed)。判不出预期、疑似有意为之的 bug 一律不改代码、**不改禅道状态**，也不会卡住后续 bug——它们进「未处理清单」，结尾统一汇报。AI 不主动提出 `bydesign` / `tostory` / `duplicate` / `notrepro` 这类结论（没有需求文档和原型时，「代码和代码一致」不构成设计如此），只有用户明确指定 resolution 时才代为执行。
 - **单条 / 多 id / 列表选择**：`/bugfix-run <bugId>` 直接指定；`/bugfix-run <id> <id>` 按顺序逐条处理；`--pick` 从 active 列表选择（宿主支持 `multiSelect` 时可多选）；`--dry-run` 只出方案，`--no-resolve` 只提交不回写。

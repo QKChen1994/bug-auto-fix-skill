@@ -1,6 +1,6 @@
 ---
 name: bugfix-config
-version: 1.3.1
+version: 1.3.4
 description: 精细配置、查看或重置禅道筛选与校验条件——从禅道拉取 scope 列表供选择，配置 assigned_to（默认当前账号）、test_cmd/build_cmd/commit_prefix/limit，写入 .zentao-triage/user-config.md（按 YAML 解析，不提交）；支持 --show 与 --reset。
 ---
 
@@ -69,6 +69,8 @@ limit: 50
 4. **创建配置**：
    - 创建 `.zentao-triage/` 目录。
    - 确保 `.gitignore` 忽略 `.zentao-triage/`；没有 `.gitignore` 就创建。
+   - 辅助脚本按 `.zentao-triage/bin/<name>` → `scripts/<name>` → `$HOME/.zentao-triage/bin/<name>`
+     （`install.sh --user` 的用户级安装）顺序查找；三处都没有就走下面写明的回退方式。
 
    **4.1 选择维度 `scope`**：用宿主的选项式提问让用户选 product / project / execution；
    说明 `project` / `execution` 只会看到已关联到该范围的 Bug。
@@ -90,17 +92,28 @@ limit: 50
 
    **4.3 选择 `assigned_to`**：
    - **默认目标是只处理指派给当前登录账号的 bug**，不是全量。
-   - 若 `.zentao-triage/bin/zentao-users.mjs` 存在，运行
-     `node .zentao-triage/bin/zentao-users.mjs`；使用输出里的 `currentUser` / `currentAccount`
-     作为默认账号，展示为 `仅当前账号 <account>（<realname>）（推荐）`；
-     同时提供「选择其他账号」和「全部指派人（不推荐，需明确确认）」。
-     不要显示密码或 token。项目 MCP 配置不在默认位置时，先设置 `ZENTAO_MCP_CONFIG=<路径>`。
-   - 脚本不可用、`currentUser` 为空或返回空列表：
-     - 先用 `zentao_list_my_bugs` 返回项的 `assignedTo` 推断当前账号；
-     - 仍无法确定 → 询问用户选择或输入账号，**不要默认留空**。
+   - **「当前账号」以会话里实际连接的 MCP 为准，不是配置文件**：先用 `zentao_list_my_bugs` 返回项的
+     `assignedTo` 确定 MCP 实际登录的账号。配置文件里的 `ZENTAO_ACCOUNT` 是另一个来源，可能指向
+     另一个禅道实例，不能直接当成本次执行身份。
+   - 若 `.zentao-triage/bin/zentao-users.mjs` 存在，运行 `node .zentao-triage/bin/zentao-users.mjs`
+     取 `currentUser`（姓名）和 `configPath`（它实际读了哪个配置文件），然后：
+     - 与 MCP 账号**一致** → 展示 `仅当前账号 <account>（<realname>）（推荐）`；
+     - **不一致** → 同时显示两者（MCP 实际账号 / 脚本读到的 `currentAccount` + `configPath`）并询问用哪个，
+       **绝不静默写入脚本读到的账号**；通常是脚本穿透到了别的客户端配置，可用
+       `--config <正确的 mcp.json>` 指定后重跑；
+     - `list_my_bugs` 为空、推断不出身份 → 可以用脚本的 `currentAccount`，但必须把 `configPath`
+       一起显示出来让用户确认。
+     不要显示密码或 token。
+   - 同时提供「选择其他账号」和「全部指派人（不推荐，需明确确认）」。
+   - **默认调用只返回当前账号和 `totalUsers`，不含用户列表**。要选其他人时：
+     先问关键词，再运行 `node .zentao-triage/bin/zentao-users.mjs --keyword <账号或姓名子串>`；
+     `matched` 为 0 就换关键词重试。只有用户明确要看全部时才用 `--list`，
+     并且不要把整份名单复述进对话（上百人会白白吃掉上万 token）。
+   - 脚本不可用或 `currentUser` 为空：用 `zentao_list_my_bugs` 的 `assignedTo` 推断；
+     仍无法确定 → 询问用户选择或输入账号，**不要默认留空**。
    - 只有用户明确选择「全部指派人」时才写 `assigned_to: ""`，选择后再次确认。
    - 定时巡检 / 自动任务默认也必须限定当前账号；只有用户明确要求全量时才留空。
-   - 已有配置时展示当前值；若为空，按上述规则重新确认，不要直接沿用。
+   - 已有配置时展示当前值；若为空，或配置的账号与 MCP 实际账号不一致，都要重新确认，不要直接沿用。
 
    **4.4 自动探测 `test_cmd` / `build_cmd`（可选）**：
    - 若 `.zentao-triage/bin/detect-commands.sh` 存在，先运行：

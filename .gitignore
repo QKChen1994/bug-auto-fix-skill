@@ -5,13 +5,20 @@
 /.mcp.json
 
 # AI 编码工具的本地安装目录（不进远程仓库）
-.qoder/
+# 注意：在「使用本 skill 的业务项目」里 .agents/skills 应当提交以共享；
+# 这里忽略是因为本仓库就是 skill 的源，自己安装只会产生本地副本。
+.agents/
 .codebuddy/
 .claude/
-.cursor/
-.trae/
 .codex/
+.copilot/
+.cursor/
+.dsh/
+.gemini/
+.qoder/
+.trae/
 .windsurf/
+.zcode/
 
 # OS
 .DS_Store

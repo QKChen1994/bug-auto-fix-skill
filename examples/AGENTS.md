@@ -33,8 +33,10 @@
   `zentao_list_scopes(kind=<scope>)` 拉取候选（execution 可先选 projectId），
   以 `名称(id=...)` 作为宿主的选项让用户选，不要猜 id；**展示全部候选**，
   默认/推荐只能标注，不能只给默认项和推荐项；未连通时回退手动输入并提示 `/bugfix-init`。
-- `project`/`execution` 要求 Bug 已关联到对应范围；`assigned_to` 默认当前登录账号
-  （`zentao-users.mjs` 的 `currentUser`），只有用户明确选择「全部指派人」时才留空。
+- `project`/`execution` 要求 Bug 已关联到对应范围；`assigned_to` 默认当前登录账号，且「当前账号」以
+  `zentao_list_my_bugs` 的 `assignedTo`（会话实际连的禅道）为准；`zentao-users.mjs` 默认只输出
+  `currentUser` 与 `configPath`（它读了哪个配置文件），两者不一致时摆出来让用户确认，不静默写入。
+  换人用 `--keyword <账号或姓名子串>` 过滤，确认要看全部才用 `--list`；只有明确选择「全部指派人」时才留空。
 - `test_cmd`/`build_cmd` 优先运行 `.zentao-triage/bin/detect-commands.sh` 获取建议；
   没有脚本时扫描 package.json / Makefile / go.mod / pom.xml / build.gradle / composer.json /
   Gemfile / pyproject.toml / Cargo.toml / monorepo 配置。用户确认（可自定义或留空）。
@@ -58,7 +60,9 @@
    单条/多 id/`--my` 忽略 scope；批量、`--pick`、审计使用配置范围时才要求 scope 合法。
    没有配置：默认我的 active bug；按范围时做轻量配置（只采集 scope/scope_id/assigned_to，
    其余用默认值），或提示 `/bugfix-config` 做高级设置。
-   scope 候选展示全量，默认/推荐只标注；assigned_to 默认当前账号，全量必须明确选择。
+   scope 候选展示全量，默认/推荐只标注；assigned_to 默认当前账号（取 `list_my_bugs` 的 `assignedTo`，
+   脚本的 `currentAccount` 与它不一致时显示 `configPath` 并询问，不静默写），全量必须明确选择；
+   配置账号与 MCP 实际账号不一致时先确认再执行。
 4. 菜单：有配置 `[批量修复当前范围 / 从列表选择 / 审计已修复未结项]`；
    无配置 `[修复我的 active bug / 配置范围后修复 / 审计已修复未结项]`。
    批量用 `list_bugs`（无配置用 `list_my_bugs`），按 page 翻页到 total，本地筛 active；

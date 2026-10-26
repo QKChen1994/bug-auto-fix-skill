@@ -77,12 +77,32 @@ if grep -Rqs '待确认结项' "$ROOT/README.md" "$ROOT/examples" "$ROOT/skills"
   echo "FAIL: 发现已废弃的「待确认结项」措辞"; fail=1
 fi
 
+# 用户列表默认只返回当前账号，换人必须走 --keyword，避免把整份名单灌进上下文
+for f in "$ROOT/skills/bugfix-config/SKILL.md" "$ROOT/skills/bugfix-run/SKILL.md"; do
+  for phrase in '--keyword' 'totalUsers' 'configPath' '不一致'; do
+    if ! grep -q -- "$phrase" "$f"; then
+      echo "FAIL: $f 未说明用户列表的 $phrase 用法"; fail=1
+    fi
+  done
+done
+
 # 默认全自动：必须有 --noauto 开关，且不得再弹「执行模式」确认
 if ! grep -q -- '--noauto' "$ROOT/skills/bugfix-run/SKILL.md"; then
   echo "FAIL: bugfix-run 缺少 --noauto 开关"; fail=1
 fi
 if grep -q '执行模式？' "$ROOT/skills/bugfix-run/SKILL.md"; then
   echo "FAIL: bugfix-run 不应再询问执行模式（默认全自动）"; fail=1
+fi
+
+# 安装模型：权威源 .agents/skills + 软链接；文档必须交代清楚
+if ! grep -q '\.agents/skills' "$ROOT/docs/hosts.md"; then
+  echo "FAIL: docs/hosts.md 未说明 .agents/skills 权威源"; fail=1
+fi
+if ! grep -q -- '--user' "$ROOT/README.md"; then
+  echo "FAIL: README 未说明 install.sh --user"; fail=1
+fi
+if grep -q '只装到.*第一个' "$ROOT/README.md" "$ROOT/docs/hosts.md"; then
+  echo "FAIL: 文档仍写着只装第一个宿主目录"; fail=1
 fi
 
 # 审计是 run 的只读模式，不应再出现独立的 bugfix-triage 入口

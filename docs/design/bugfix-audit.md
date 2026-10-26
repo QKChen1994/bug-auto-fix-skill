@@ -2,13 +2,18 @@
 
 - 日期：2026-10-25
 - 状态：已评审并实现（2026-10-25）
-- 涉及版本：`bugfix-run` 1.5.0、`bugfix-config` 1.3.1、`bugfix-init` 1.2.0（不变）
+- 涉及版本：`bugfix-run` 1.5.2、`bugfix-config` 1.3.3、`bugfix-init` 1.2.0（不变）
 - 后续修正：1.3.1 将 `assigned_to` 默认改为当前登录账号，并要求 scope 候选展示全量；`zentao-users.mjs` 输出 `currentUser` / `currentAccount`。
 - 后续修正：1.3.2 每次 resolve 都带 `assignedTo=<openedBy>` 把 bug 指派回创建人；`get_bug` 默认 `includeImages=false` 控制上下文体积。
 - 后续修正：1.4.0 取消 AI 对非 fixed 的判定权——不再主动提 bydesign/tostory/duplicate/notrepro，
   这类 bug 不改状态，只进「未处理清单」并在结尾汇报；非阻塞队列机制保留。
 - 后续修正：1.5.0 默认全自动执行，删除「执行模式」确认框；新增 `--noauto` 才逐条确认。
   唯一会打破全自动的验证类情况是 `test_cmd` 与 `build_cmd` 都为空时自动降级为逐条确认。
+- 后续修正：1.5.1 / 1.3.2 让 `zentao-users.mjs` 默认只输出 `currentAccount` / `currentUser` / `totalUsers`，
+  换人用 `--keyword` 过滤、确认要看全部才用 `--list`，避免把上百个用户灌进上下文。
+- 后续修正：1.5.2 / 1.3.3 修「当前账号」判定来源——脚本可能穿透到别的客户端配置，读到另一个禅道实例的账号。
+  `zentao-users.mjs` 新增 `configPath` 输出与 `--config` 覆盖；skill 改为以 `zentao_list_my_bugs` 的
+  `assignedTo`（会话实际连接的 MCP）为权威身份，与脚本账号不一致时显示双方并询问，绝不静默写入。
 - 关联文档：`README.md`、`docs/hosts.md`、`examples/AGENTS.md`
 
 ## 1. 背景与目标
@@ -502,5 +507,5 @@ active 但没有任何 commit 命中前缀。报告只列 id 列表和数量，�
 ## 13. 发布
 
 - 完成后同步 README / AGENTS / hosts。
-- 版本：`bugfix-run` 1.5.0、`bugfix-config` 1.3.1；`bugfix-init` 保持 1.2.0。
+- 版本：`bugfix-run` 1.5.1、`bugfix-config` 1.3.2；`bugfix-init` 保持 1.2.0。
 - 本次不新增 tag/release；发布动作另行决定。

@@ -1,6 +1,6 @@
 ---
 name: bugfix-run
-version: 1.5.0
+version: 1.5.3
 description: 禅道 Bug 修复主入口——默认全自动且只处理当前账号的 active bug，无配置也能直接开始；支持按范围批量、从列表选择、指定多条 id、只读审计已修复未结项（--audit）、--noauto 逐条确认；只 resolve fixed 并指派回创建人，判不出预期的 bug 不改状态只在结尾汇报；支持 --my / --dry-run / --no-resolve。
 ---
 
@@ -87,6 +87,9 @@ description: 禅道 Bug 修复主入口——默认全自动且只处理当前�
 
 - 写日志/报告前确保 `.zentao-triage/` 已被 `.gitignore` 忽略；没有就创建/追加。
 - 审计报告、临时文件、运行日志都只写这里，不提交。
+- 辅助脚本（`zentao-users.mjs`、`detect-commands.sh`、`find-fixed-unresolved.mjs`）按
+  `.zentao-triage/bin/<name>` → `scripts/<name>` → `$HOME/.zentao-triage/bin/<name>`
+  （`install.sh --user` 的用户级安装）顺序查找；三处都没有才走对应章节写明的回退方式。
 
 ### 1.5 分支：审计 vs 修复
 
@@ -131,10 +134,16 @@ description: 禅道 Bug 修复主入口——默认全自动且只处理当前�
 1. 选维度：`product` / `project` / `execution`；说明 `project` / `execution` 只会看到已关联到该范围的 Bug。
 2. 调 `zentao_list_scopes(kind=<scope>, limit=100)`，按 `page` 翻页直到覆盖 `total`；以 `名称 (id=...)` 展示拉取到的全部候选，默认/推荐项只能标注，**不能只给默认项和推荐项两个**；宿主选项数有限时分批展示或让用户输入关键词在全量候选中过滤。不要要求手记 id，不要猜 id。
 3. `execution` 先选 project，再用 `projectId` 缩小范围。
-4. `assigned_to`：**默认只处理当前登录账号**。
-   - 若 `.zentao-triage/bin/zentao-users.mjs` 存在，运行并用输出里的 `currentUser` / `currentAccount` 作为默认账号；
-     展示「仅当前账号 <account>（<realname>）（推荐）」「选择其他账号」「全部指派人（不推荐，需明确确认）」。
-   - 脚本不可用时，用 `zentao_list_my_bugs` 返回项的 `assignedTo` 推断；仍无法确定就询问用户，**不要默认留空**。
+4. `assigned_to`：**默认只处理当前登录账号**，且「当前账号」以会话实际连接的 MCP 为准，不是配置文件里的账号。
+   - 先用 `zentao_list_my_bugs` 返回项的 `assignedTo` 确定 MCP 实际登录账号；
+     再用 `node .zentao-triage/bin/zentao-users.mjs` 取 `currentUser`（姓名）与 `configPath`（它实际读了哪个配置文件）。
+   - 两者一致 → 展示「仅当前账号 <account>（<realname>）（推荐）」；
+     **不一致 → 同时显示 MCP 账号和脚本的 `currentAccount` + `configPath` 并询问用哪个，
+     绝不静默写入脚本读到的账号**（多半是脚本穿透到了别的客户端配置，可用 `--config <路径>` 指定后重跑）；
+     `list_my_bugs` 为空、推断不出身份时，可以用脚本账号，但必须把 `configPath` 显示出来让用户确认。
+   - 另提供「选择其他账号」「全部指派人（不推荐，需明确确认）」。
+   - 默认调用只返回当前账号与 `totalUsers`；要换人用 `--keyword <账号或姓名子串>` 过滤，
+     `matched` 为 0 就换关键词；只有用户明确要看全部时才用 `--list`，不要把整份名单复述进对话。
    - 只有用户明确选择「全部指派人」时才留空，并再次确认。
 5. 写入 `.zentao-triage/user-config.md`：
 
@@ -182,7 +191,8 @@ limit: 50
 - **不要传 `status`**（当前 MCP 的 status 过滤不可靠）；拉回后本地筛 `status=active`。
 - `limit` 是每页大小；按 `page` 翻页直到覆盖 `total`，不要只处理第一页。
 - 若 `total` 很大，先询问是否缩小范围 / `assigned_to` / 分批；处理前回显将处理的条数。
-- 使用配置范围时，`assigned_to` 为空不能直接按全量处理：默认先确定当前账号（`zentao-users.mjs` 的 `currentUser`，或用 `list_my_bugs` 的 `assignedTo` 推断），询问「仅当前账号（推荐）/ 全部指派人（需确认）」。只有用户明确选择「全部指派人」才按空值处理，并二次确认；定时巡检默认当前账号。
+- 使用配置范围时，`assigned_to` 为空不能直接按全量处理：先用 `zentao_list_my_bugs` 的 `assignedTo` 确定 MCP 实际账号（必要时用 `zentao-users.mjs` 补姓名），询问「仅当前账号（推荐）/ 全部指派人（需确认）」。只有用户明确选择「全部指派人」才按空值处理，并二次确认；定时巡检默认当前账号。
+- 配置的 `assigned_to` 与 MCP 实际账号不一致时，先提示「配置是 X，当前 MCP 登录的是 Y」并确认按哪个执行；不要静默按配置跑，也不要静默改成 MCP 账号（可能是你有意切了账号或禅道实例）。
 - 0 条 active → 报告没有 active bug；若预期有，提示检查 `scope` / `scope_id` / `assigned_to` / 是否关联到对应范围，不要臆断。
 - dry-run 只做只读分析，不进入修改/提交流程。
 
