@@ -44,7 +44,7 @@ for doc in "$ROOT/README.md" "$ROOT/examples/AGENTS.md"; do
   done
   for phrase in '当前登录账号' '全部指派人'; do
     if ! grep -q "$phrase" "$doc"; then
-      echo "FAIL: $doc 未提及「$phrase」"; fail=1
+      echo "FAIL: $doc 未提及「${phrase}」"; fail=1
     fi
   done
   if ! grep -qE '/bugfix-run <bugId> \[<bugId>' "$doc"; then
@@ -56,7 +56,7 @@ done
 for f in "$ROOT/skills/bugfix-config/SKILL.md" "$ROOT/skills/bugfix-run/SKILL.md"; do
   for phrase in '当前登录账号' '全部指派人' '全部候选' '不能只给默认项和推荐项'; do
     if ! grep -q "$phrase" "$f"; then
-      echo "FAIL: $f 未包含「$phrase」"; fail=1
+      echo "FAIL: $f 未包含「${phrase}」"; fail=1
     fi
   done
 done
@@ -131,6 +131,21 @@ for f in "$ROOT/examples/.mcp.json" "$ROOT/examples/AGENTS.md" "$ROOT/skills/bug
     echo "FAIL: $f 未使用 ZENTAO_URL"; fail=1
   fi
 done
+
+# macOS CI runner 自带 bash 3.2：变量引用后若紧跟全角标点（例如 $VAR 紧跟中文括号），
+# 标点字节会被吞进变量名导致 unbound variable。这类引用必须写成 ${VAR}。
+if LC_ALL=C grep -q -E '\$[A-Za-z_][A-Za-z0-9_]*[^ -~]|\$[0-9]+[^ -~]' "$ROOT"/scripts/*.sh 2>/dev/null; then
+  echo "FAIL: shell 脚本中变量引用后紧跟非 ASCII 字符，请改写为花括号形式（bash 3.2 会吞进变量名）"
+  LC_ALL=C grep -n -E '\$[A-Za-z_][A-Za-z0-9_]*[^ -~]|\$[0-9]+[^ -~]' "$ROOT"/scripts/*.sh || true
+  fail=1
+fi
+
+# shellcheck SC2155：声明与赋值分成两条语句，否则命令替换的返回码被 local 吞掉
+if grep -q -E '(local|export) [A-Za-z_][A-Za-z0-9_]*="?\$\(' "$ROOT"/scripts/*.sh 2>/dev/null; then
+  echo "FAIL: shell 脚本中 local/export 赋值包含命令替换（SC2155），请拆成两条语句"
+  grep -n -E '(local|export) [A-Za-z_][A-Za-z0-9_]*="?\$\(' "$ROOT"/scripts/*.sh || true
+  fail=1
+fi
 
 if [ "$fail" -ne 0 ]; then
   echo "校验未通过"; exit 1

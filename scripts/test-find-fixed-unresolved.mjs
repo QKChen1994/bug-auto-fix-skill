@@ -12,6 +12,15 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(HERE, 'find-fixed-unresolved.mjs');
 const tmpDirs = [];
 
+// 与脚本内保持一致：Windows 上 mkdtemp 可能给出 8.3 短路径，git 给出长路径。
+function canonical(p) {
+  try {
+    return fs.realpathSync.native(p);
+  } catch {
+    return fs.realpathSync(p);
+  }
+}
+
 function git(repo, args, env = {}) {
   return execFileSync('git', args, {
     cwd: repo,
@@ -83,7 +92,7 @@ test('default prefix on current branch', () => {
 
   assert.equal(result.status, 0);
   assert.equal(result.json.ok, true);
-  assert.equal(result.json.repo, fs.realpathSync(repo));
+  assert.equal(result.json.repo, canonical(repo));
   assert.ok(result.json.head);
   assert.equal(result.json.branch, 'main');
   assert.equal(result.json.shallow, false);

@@ -101,6 +101,19 @@ function gitStatus(repo, args) {
   return { status: result.status, stdout: result.stdout || '', stderr: result.stderr || '' };
 }
 
+function canonicalPath(p) {
+  // Windows 下 git 可能返回长路径而调用方传来 8.3 短路径（或反之），统一展开成长路径。
+  try {
+    return fs.realpathSync.native(p);
+  } catch {
+    try {
+      return fs.realpathSync(p);
+    } catch {
+      return p;
+    }
+  }
+}
+
 function resolveRepo(repo) {
   if (!fs.existsSync(repo)) fail(`repository path does not exist: ${repo}`);
   let topLevel;

@@ -20,6 +20,22 @@ file_url() {
 
 resolve() { (cd "$1" && pwd -P); }
 
+# Windows（Git Bash / MSYS）下 ln -s 可能失败或因权限退回为复制，链接形态不强求，
+# 但「宿主目录看到的就是权威源内容」这条契约在平台上都必须成立。
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) ON_WINDOWS=1 ;;
+  *) ON_WINDOWS=0 ;;
+esac
+
+assert_installed() { # $1=宿主下的 skill 路径 $2=权威源路径 $3=场景描述
+  [ -e "$1" ] || fail "${3} 未安装"
+  if [ "$ON_WINDOWS" = 0 ]; then
+    [ -L "$1" ] || fail "${3} 不是软链接"
+    [ "$(resolve "$1")" = "$(resolve "$2")" ] || fail "${3} 没指向权威源"
+  fi
+  diff -rq "$1" "$2" >/dev/null 2>&1 || fail "${3} 内容与权威源不一致"
+}
+
 # 场景 1：已有 .claude，且项目没有 .gitignore
 proj1="$TMP/project1"
 mkdir -p "$proj1/.claude"
@@ -57,9 +73,7 @@ proj4="$TMP/project4"
 mkdir -p "$proj4/.claude" "$proj4/.qoder" "$proj4/.codex"
 bash "$ROOT/scripts/install.sh" "$proj4" >/dev/null
 for h in claude qoder; do
-  [ -L "$proj4/.$h/skills/bugfix-run" ] || fail "场景4 .$h/skills/bugfix-run 不是软链接"
-  [ "$(resolve "$proj4/.$h/skills/bugfix-run")" = "$(resolve "$proj4/.agents/skills/bugfix-run")" ] \
-    || fail "场景4 .$h 的链接没指向权威源"
+  assert_installed "$proj4/.$h/skills/bugfix-run" "$proj4/.agents/skills/bugfix-run" "场景4 .$h/skills/bugfix-run"
 done
 [ ! -e "$proj4/.codex/skills" ] || fail "场景4 codex 原生读 .agents/skills，不该建链接"
 
@@ -80,21 +94,21 @@ bash "$ROOT/scripts/install.sh" "$proj6" >/dev/null
 bak=$(find "$proj6/.claude/skills" -maxdepth 1 -name 'bugfix-run.bak-*' | head -1)
 [ -n "$bak" ] || fail "场景6 手改内容没有被备份"
 grep -q 'MY HAND EDIT' "$bak/SKILL.md" || fail "场景6 备份内容不对"
-[ -L "$proj6/.claude/skills/bugfix-run" ] || fail "场景6 应已替换为软链接"
+assert_installed "$proj6/.claude/skills/bugfix-run" "$proj6/.agents/skills/bugfix-run" "场景6 替换手改目录后"
 
 # 场景 7：重复安装幂等，不产生多余备份
 before=$(find "$proj6/.claude/skills" -maxdepth 1 -name 'bugfix-run.bak-*' | wc -l | tr -d ' ')
 bash "$ROOT/scripts/install.sh" "$proj6" >/dev/null
 after=$(find "$proj6/.claude/skills" -maxdepth 1 -name 'bugfix-run.bak-*' | wc -l | tr -d ' ')
 [ "$before" = "$after" ] || fail "场景7 重复安装产生了新备份"
-[ -L "$proj6/.claude/skills/bugfix-run" ] || fail "场景7 重复安装后链接丢失"
+assert_installed "$proj6/.claude/skills/bugfix-run" "$proj6/.agents/skills/bugfix-run" "场景7 重复安装后"
 
 # 场景 8：--user 装到 ~/.agents/skills，只给已存在的宿主建链接，且不写 .gitignore
 fakehome="$TMP/fakehome"
 mkdir -p "$fakehome/.claude" "$fakehome/.dsh"
 HOME="$fakehome" bash "$ROOT/scripts/install.sh" --user >/dev/null
 [ -f "$fakehome/.agents/skills/bugfix-run/SKILL.md" ] || fail "场景8 用户级权威源缺失"
-[ -L "$fakehome/.claude/skills/bugfix-run" ] || fail "场景8 已存在的 ~/.claude 没建链接"
+assert_installed "$fakehome/.claude/skills/bugfix-run" "$fakehome/.agents/skills/bugfix-run" "场景8 用户级 ~/.claude"
 [ ! -e "$fakehome/.dsh/skills" ] || fail "场景8 不该为不存在的宿主 skills 目录凭空建路径"
 [ ! -f "$fakehome/.gitignore" ] || fail "场景8 用户级不应生成 .gitignore"
 [ -f "$fakehome/.zentao-triage/bin/zentao-users.mjs" ] || fail "场景8 用户级辅助脚本缺失"
@@ -103,8 +117,8 @@ HOME="$fakehome" bash "$ROOT/scripts/install.sh" --user >/dev/null
 proj9="$TMP/project9"
 mkdir -p "$proj9/.claude" "$proj9/.qoder" "$proj9/.trae"
 bash "$ROOT/scripts/install.sh" "$proj9" --hosts claude,trae >/dev/null
-[ -L "$proj9/.claude/skills/bugfix-run" ] || fail "场景9 指定的 claude 没装"
-[ -L "$proj9/.trae/skills/bugfix-run" ] || fail "场景9 指定的 trae 没装"
+assert_installed "$proj9/.claude/skills/bugfix-run" "$proj9/.agents/skills/bugfix-run" "场景9 指定的 claude"
+assert_installed "$proj9/.trae/skills/bugfix-run" "$proj9/.agents/skills/bugfix-run" "场景9 指定的 trae"
 [ ! -e "$proj9/.qoder/skills" ] || fail "场景9 未指定的 qoder 不该被装"
 
 # 远程模式素材：本地 tarball / 逐文件目录，模拟无本地 skills 的 curl 安装

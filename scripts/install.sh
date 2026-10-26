@@ -131,7 +131,7 @@ for s in $SKILLS; do
   mkdir -p "$CANON/$s"
   cp "$SRC/skills/$s/SKILL.md" "$CANON/$s/SKILL.md"
 done
-echo "权威源  $CANON  （$SKILLS）"
+echo "权威源  ${CANON}  （${SKILLS}）"
 
 # ------------------------------------------------- 2. 决定要给哪些宿主建链接
 if [ -n "$HOSTS_OVERRIDE" ]; then
@@ -139,7 +139,7 @@ if [ -n "$HOSTS_OVERRIDE" ]; then
   TARGETS=""
   for h in $wanted; do
     if in_list "$h" "$ALL_HOSTS"; then TARGETS="$TARGETS $h"
-    else echo "忽略未知宿主：$h（可选：$ALL_HOSTS）"; fi
+    else echo "忽略未知宿主：${h}（可选：${ALL_HOSTS}）"; fi
   done
 else
   TARGETS=""
@@ -163,9 +163,10 @@ link_one() { # $1=host skills dir, $2=skill name
     if diff -rq "$dest" "$src" >/dev/null 2>&1; then
       rm -rf "$dest"
     else
-      local bak="$dest.bak-$(date +%Y%m%d-%H%M%S)"
+      local bak
+      bak="$dest.bak-$(date +%Y%m%d-%H%M%S)"
       mv "$dest" "$bak"
-      echo "  备份  $2 原有内容与此前版本不同 -> $bak"
+      echo "  备份  ${2} 原有内容与此前版本不同 -> $bak"
     fi
   fi
   [ -e "$dest" ] && rm -rf "$dest"
