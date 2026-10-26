@@ -140,10 +140,18 @@ if LC_ALL=C grep -q -E '\$[A-Za-z_][A-Za-z0-9_]*[^ -~]|\$[0-9]+[^ -~]' "$ROOT"/s
   fail=1
 fi
 
-# shellcheck SC2155：声明与赋值分成两条语句，否则命令替换的返回码被 local 吞掉
+# SC2155：声明与赋值分成两条语句，否则命令替换的返回码会被 local 吞掉
 if grep -q -E '(local|export) [A-Za-z_][A-Za-z0-9_]*="?\$\(' "$ROOT"/scripts/*.sh 2>/dev/null; then
   echo "FAIL: shell 脚本中 local/export 赋值包含命令替换（SC2155），请拆成两条语句"
   grep -n -E '(local|export) [A-Za-z_][A-Za-z0-9_]*="?\$\(' "$ROOT"/scripts/*.sh || true
+  fail=1
+fi
+
+# 以 # shellcheck 开头的注释会被当成指令解析，缺 key=value 时 shellcheck 直接 SC1073 报错
+bad_directives="$(grep -hE '^[[:space:]]*#[[:space:]]*shellcheck' "$ROOT"/scripts/*.sh 2>/dev/null | grep -v '=' || true)"
+if [ -n "$bad_directives" ]; then
+  echo "FAIL: 存在不可解析的检查器指令行，应写成 disable=SCxxxx 形式或改写措辞"
+  printf '%s\n' "$bad_directives"
   fail=1
 fi
 
