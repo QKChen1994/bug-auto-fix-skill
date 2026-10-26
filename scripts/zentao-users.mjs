@@ -83,6 +83,7 @@ try {
           account: String(user.account),
           realname: user.realname ? String(user.realname) : "",
           role: user.role ? String(user.role) : "",
+          current: String(user.account) === account,
         });
       }
     }
@@ -90,7 +91,14 @@ try {
     if (Number.isFinite(reportedTotal)) total = reportedTotal;
   }
 
-  console.log(JSON.stringify({ ok: true, users }));
+  const matched = account ? users.find((user) => user.account === account) : null;
+  const currentUser = account
+    ? matched
+      ? { account: matched.account, realname: matched.realname, role: matched.role, current: true }
+      : { account, realname: "", role: "", current: true }
+    : null;
+
+  console.log(JSON.stringify({ ok: true, currentAccount: account, currentUser, users }));
 } catch (error) {
   fail(error);
 }

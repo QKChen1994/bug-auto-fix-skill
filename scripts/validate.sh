@@ -42,10 +42,48 @@ for doc in "$ROOT/README.md" "$ROOT/examples/AGENTS.md"; do
       echo "FAIL: $doc 未提及 $flag"; fail=1
     fi
   done
+  for phrase in '当前登录账号' '全部指派人'; do
+    if ! grep -q "$phrase" "$doc"; then
+      echo "FAIL: $doc 未提及「$phrase」"; fail=1
+    fi
+  done
   if ! grep -qE '/bugfix-run <bugId> \[<bugId>' "$doc"; then
     echo "FAIL: $doc 未提及多 id 用法"; fail=1
   fi
 done
+
+# 默认指派人必须是当前账号；候选必须展示全量，不能只给默认/推荐两项
+for f in "$ROOT/skills/bugfix-config/SKILL.md" "$ROOT/skills/bugfix-run/SKILL.md"; do
+  for phrase in '当前登录账号' '全部指派人' '全部候选' '不能只给默认项和推荐项'; do
+    if ! grep -q "$phrase" "$f"; then
+      echo "FAIL: $f 未包含「$phrase」"; fail=1
+    fi
+  done
+done
+
+# 结项必须指派回创建人，且默认不下载图片
+if ! grep -q 'assignedTo=<openedBy>' "$ROOT/skills/bugfix-run/SKILL.md"; then
+  echo "FAIL: bugfix-run 未要求 resolve 时指派回创建人"; fail=1
+fi
+if ! grep -q 'includeImages=false' "$ROOT/skills/bugfix-run/SKILL.md"; then
+  echo "FAIL: bugfix-run 未默认 includeImages=false"; fail=1
+fi
+
+# AI 不判定非 fixed：未处理清单必须存在，旧的「待确认结项」不得回潮
+if ! grep -q '未处理清单' "$ROOT/skills/bugfix-run/SKILL.md"; then
+  echo "FAIL: bugfix-run 缺少「未处理清单」"; fail=1
+fi
+if grep -Rqs '待确认结项' "$ROOT/README.md" "$ROOT/examples" "$ROOT/skills"; then
+  echo "FAIL: 发现已废弃的「待确认结项」措辞"; fail=1
+fi
+
+# 默认全自动：必须有 --noauto 开关，且不得再弹「执行模式」确认
+if ! grep -q -- '--noauto' "$ROOT/skills/bugfix-run/SKILL.md"; then
+  echo "FAIL: bugfix-run 缺少 --noauto 开关"; fail=1
+fi
+if grep -q '执行模式？' "$ROOT/skills/bugfix-run/SKILL.md"; then
+  echo "FAIL: bugfix-run 不应再询问执行模式（默认全自动）"; fail=1
+fi
 
 # 审计是 run 的只读模式，不应再出现独立的 bugfix-triage 入口
 if grep -Rqs 'bugfix-triage' "$ROOT/README.md" "$ROOT/examples" "$ROOT/skills"; then

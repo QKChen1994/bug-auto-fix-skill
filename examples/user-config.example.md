@@ -4,7 +4,8 @@
 scope: product
 # 可先用 zentao_list_scopes(kind=product) 查 id
 scope_id: 1
-assigned_to: ""
+# 默认当前登录账号；留空 = 全部指派人（需明确确认）
+assigned_to: "your_account"
 test_cmd: ""
 build_cmd: ""
 # 必须包含且只包含一个 {id}；会被替换为 bug id。

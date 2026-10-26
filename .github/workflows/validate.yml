@@ -37,9 +37,12 @@ jobs:
         run: |
           node --check scripts/find-fixed-unresolved.mjs
           node --check scripts/test-find-fixed-unresolved.mjs
+          node --check scripts/test-zentao-users.mjs
 
-      - name: Audit helper tests
-        run: node --test scripts/test-find-fixed-unresolved.mjs
+      - name: Helper tests
+        run: |
+          node --test scripts/test-find-fixed-unresolved.mjs
+          node --test scripts/test-zentao-users.mjs
 
       - name: Validate SKILL.md and docs
         run: bash scripts/validate.sh

@@ -14,9 +14,9 @@ AI 编码 agent skill，支持 CodeBuddy / Claude Code / Cursor / Windsurf / Cod
 
 | 命令 | 作用 | 使用频率 |
 |---|---|---|
-| `/bugfix-run` | **主入口**：无参数菜单；处理我的 active bug、按范围批量、从列表选、指定多条 id、只读审计（`--audit`）；支持 `--my` / `--dry-run` / `--no-resolve` | 日常 |
+| `/bugfix-run` | **主入口**：无参数菜单；处理我的 active bug、按范围批量、从列表选、指定多条 id、只读审计（`--audit`）；默认全自动，`--noauto` 逐条确认；支持 `--my` / `--dry-run` / `--no-resolve` | 日常 |
 | `/bugfix-init` | 检测/安装禅道 MCP（官方 `install.sh`），配置 `ZENTAO_URL` / 账号 / 密码与 `ZENTAO_ALLOW_RESOLVE_BUG`；`--reset` 只重写 `zentao` 条目 | 首次/重置/排障 |
-| `/bugfix-config` | 精细配置：从禅道拉取产品/项目/执行列表，设置 `scope`+`scope_id`、`assigned_to`、`test_cmd`/`build_cmd`/`commit_prefix`/`limit`；支持 `--show` / `--reset` | 高级调整 |
+| `/bugfix-config` | 精细配置：从禅道拉取产品/项目/执行列表，设置 `scope`+`scope_id`、`assigned_to`（默认当前账号）、`test_cmd`/`build_cmd`/`commit_prefix`/`limit`；支持 `--show` / `--reset` | 高级调整 |
 
 `bugfix-config` 写到 `.zentao-triage/user-config.md`（YAML，不提交）。首次使用可以不创建
 这个文件：`/bugfix-run` 会默认使用当前账号的 active bug；选择「配置范围后修复」时也会做一次
@@ -108,15 +108,19 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
 /bugfix-run --my             # 处理我的 active bug
 /bugfix-run 1234 1235        # 指定多条，按顺序逐条修复
 /bugfix-run --pick           # 从 active 列表选择，可多选
+/bugfix-run --noauto         # 逐条人工确认（默认不需要）
 /bugfix-run <bugId> [<bugId> ...]   # 显式多 id 用法
 ```
+
+**默认全自动**：定位 → 修复 → 跑验证 → commit → resolve(fixed) → 指派回创建人 → 下一条，
+中途不弹「执行模式」确认框。想要逐条确认时显式加 `--noauto`。
 
 无参数时：
 
 - **有配置**：批量修复当前范围 / 从列表选择 / 审计已修复未结项。
 - **没有配置**：修复我的 active bug / 配置范围后修复 / 审计已修复未结项。
 
-「配置范围后修复」只采集 `scope`、`scope_id`、`assigned_to`，其余用默认值；`test_cmd`、
+「配置范围后修复」只采集 `scope`、`scope_id`、`assigned_to`（默认当前登录账号），其余用默认值；`test_cmd`、
 `build_cmd`、`commit_prefix`、`limit` 可之后用 `/bugfix-config` 精细调整。
 
 ### 审计已修复未结项（只读）
@@ -166,14 +170,19 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
 - **提交前缀可核对**：`commit_prefix` 默认 `fix(zentao-#{id}): `，必须包含且只包含一个 `{id}`；审计和幂等检查都用它匹配 commit。修复前会查历史提交，避免重复 commit。
 - **分支可达性**：审计区分「当前分支已包含」和「仅在其他分支」；只有前者进入可补结项。空提交、merge、revert 和修复后重新激活都会降级为需确认。
 - **用户配置独立存储且校验**：`bugfix-config` 写到 `<项目根>/.zentao-triage/user-config.md`（YAML，gitignore）。先用 `zentao_list_scopes` 拉取产品/项目/执行列表，以 `名称(id=...)` 选项让用户选，再校验 `scope`、`scope_id`、`limit`、`commit_prefix` 等字段。支持 `product` / `project` / `execution` 三种维度；`project` / `execution` 要求 Bug 已关联到对应范围。
+- **候选必须展示全量**：scope 和指派人候选都来自禅道实际列表；默认项/推荐项只能在标签中标注，不能只给默认项和推荐项，也不能隐藏其他候选。宿主单次选项数有限时分批展示或按关键词过滤。
+- **默认只处理当前账号**：`assigned_to` 默认当前登录账号（`zentao-users.mjs` 的 `currentUser`）；只有用户明确选择「全部指派人」时才留空，并二次确认。定时巡检/自动任务同样默认当前账号。
 - **命令与测试条件有建议值**：`test_cmd` / `build_cmd` 优先运行 `.zentao-triage/bin/detect-commands.sh`，扫描 `package.json`、`Makefile`、`go.mod`、`pom.xml`、`build.gradle`、`composer.json`、`Gemfile`、`pyproject.toml`、`Cargo.toml` 及 monorepo 配置给出建议，用户可自定义或留空。
-- **指派人可从禅道选择**：`.zentao-triage/bin/zentao-users.mjs` 读取 MCP 配置并列出 `account（realname）`，供 `assigned_to` 选择；无权限或脚本不可用时回退手动输入/留空。
-- **自动模式有边界且不阻塞**：只有 `fixed` 且验证通过才自动提交并 resolve；`bydesign` / `tostory` 等非 fixed 结项不会自动 resolve，也不会卡住后续 bug——自动模式先记录到「待确认结项」队列并继续，结束后统一展示。
+- **指派人可从禅道选择**：`.zentao-triage/bin/zentao-users.mjs` 读取 MCP 配置并列出 `account（realname）`，同时标记 `currentUser`；无权限或脚本不可用时用 `zentao_list_my_bugs` 的 `assignedTo` 推断当前账号，仍无法确定就询问用户，不回退到全量。
+- **默认全自动，不弹模式确认**：`/bugfix-run` 直接按「修复 → 验证 → commit → resolve → 指派回创建人」跑完，不再询问执行模式；需要逐条把关时加 `--noauto`。唯一会打破全自动的验证类情况是 `test_cmd` 和 `build_cmd` 都为空（没有任何验证手段），此时自动降级为逐条确认并在日志说明，避免无验证谎称修复。
+- **AI 只判定 fixed，不阻塞队列**：只有确实改了代码并通过验证的 bug 才会 commit + resolve(fixed)。判不出预期、疑似有意为之的 bug 一律不改代码、**不改禅道状态**，也不会卡住后续 bug——它们进「未处理清单」，结尾统一汇报。AI 不主动提出 `bydesign` / `tostory` / `duplicate` / `notrepro` 这类结论（没有需求文档和原型时，「代码和代码一致」不构成设计如此），只有用户明确指定 resolution 时才代为执行。
 - **单条 / 多 id / 列表选择**：`/bugfix-run <bugId>` 直接指定；`/bugfix-run <id> <id>` 按顺序逐条处理；`--pick` 从 active 列表选择（宿主支持 `multiSelect` 时可多选）；`--dry-run` 只出方案，`--no-resolve` 只提交不回写。
-- **待确认结项会落盘**：例如 10 条 bug 中 2 条判为 bydesign，其余 8 条照常修复并 resolve；这 2 条保持 active，在会话汇总和 `.zentao-triage/runs/<时间戳>.md` 的 `## 待确认结项` 中列出 id、标题、理由和建议 resolution。
+- **未处理清单会落盘**：例如 10 条 bug 中 8 条修复并 resolve(fixed)，2 条判不出预期 → 状态仍是 active，在会话汇总和 `.zentao-triage/runs/<时间戳>.md` 的 `## 未处理清单` 中列出 id、标题、原因和建议下一步。当前 MCP 没有「只写备注、不改状态」的 bug 工具，所以这些说明只落在本地日志和会话结尾，不会出现在禅道里。
+- **结项指派回创建人**：每次 `zentao_resolve_bug`（含幂等补 resolve）都带 `assignedTo=<openedBy>`，把 bug 交回报障人验证；创建人缺失或禅道拒绝该指派时才省略，并在日志说明。
+- **控制上下文体积**：`get_bug` 默认 `includeImages=false`，只有不看图就无法定位时才单独取图；审计只对命中的 bug 拉详情；列表和候选都按 `total` 翻页，不把第一页当全量。
 - **提交纪律**：开跑记录 `git status` 基线；每个 bug 只 stage 自己改动的文件；不 `git add -A`、不绕过 hooks、不自动 push；失败的 bug 残留改动必须显式处理。
 - **幂等与运行日志**：修复前用 commit 前缀查历史提交，避免重复 commit；commit 成功但 resolve 失败时可重跑补结项；每次运行写 `.zentao-triage/runs/<时间戳>.md`。
-- **列表分页与过滤**：`limit` 是每页大小（默认 50），运行时会按 `total` 翻页拉全；列表过大时先按关键词过滤或缩小 `scope` / `assigned_to`。`assigned_to` 留空时会二次确认是否处理所有人的 bug。
+- **列表分页与过滤**：`limit` 是每页大小（默认 50），运行时会按 `total` 翻页拉全；列表过大时先按关键词过滤或缩小 `scope` / `assigned_to`。默认只处理当前账号；`assigned_to` 留空表示全部指派人，运行前会二次确认。
 - **审计 helper 可回退**：优先使用 `.zentao-triage/bin/find-fixed-unresolved.mjs`（一次 `git log --all` 扫描）；缺失时回退逐条 `git log`，功能可用但较慢。
 
 完整设计见 [`docs/design/bugfix-audit.md`](docs/design/bugfix-audit.md)。
@@ -206,7 +215,8 @@ bugAutoFixSkill/
 │   ├── install.sh          # 探测宿主、复制 skill、维护 gitignore
 │   ├── detect-commands.sh  # 探测 test/build 命令建议
 │   ├── test-detect-commands.sh
-│   ├── zentao-users.mjs    # 读取禅道用户列表（assigned_to 选择）
+│   ├── zentao-users.mjs    # 读取禅道用户列表并标记当前账号
+│   ├── test-zentao-users.mjs
 │   ├── find-fixed-unresolved.mjs      # 审计：按 commit 前缀匹配 bug
 │   ├── test-find-fixed-unresolved.mjs
 │   ├── smoke-test.sh       # 安装脚本冒烟测试

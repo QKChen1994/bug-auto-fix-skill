@@ -2,7 +2,13 @@
 
 - 日期：2026-10-25
 - 状态：已评审并实现（2026-10-25）
-- 涉及版本：`bugfix-run` 1.3.0、`bugfix-config` 1.3.0、`bugfix-init` 1.2.0（不变）
+- 涉及版本：`bugfix-run` 1.5.0、`bugfix-config` 1.3.1、`bugfix-init` 1.2.0（不变）
+- 后续修正：1.3.1 将 `assigned_to` 默认改为当前登录账号，并要求 scope 候选展示全量；`zentao-users.mjs` 输出 `currentUser` / `currentAccount`。
+- 后续修正：1.3.2 每次 resolve 都带 `assignedTo=<openedBy>` 把 bug 指派回创建人；`get_bug` 默认 `includeImages=false` 控制上下文体积。
+- 后续修正：1.4.0 取消 AI 对非 fixed 的判定权——不再主动提 bydesign/tostory/duplicate/notrepro，
+  这类 bug 不改状态，只进「未处理清单」并在结尾汇报；非阻塞队列机制保留。
+- 后续修正：1.5.0 默认全自动执行，删除「执行模式」确认框；新增 `--noauto` 才逐条确认。
+  唯一会打破全自动的验证类情况是 `test_cmd` 与 `build_cmd` 都为空时自动降级为逐条确认。
 - 关联文档：`README.md`、`docs/hosts.md`、`examples/AGENTS.md`
 
 ## 1. 背景与目标
@@ -84,15 +90,16 @@ run 不复制 init 的安装逻辑，也不读取 `.mcp.json`。
 仅在「没有配置 + 用户选择按范围」时使用：
 
 1. 选择维度：`product` / `project` / `execution`。
-2. 用 `zentao_list_scopes(kind=<scope>, limit=100)` 拉取候选，按 `total` 翻页；以 `名称 (id=...)` 让用户选择。
+2. 用 `zentao_list_scopes(kind=<scope>, limit=100)` 拉取候选，按 `total` 翻页；**展示全部候选**，默认/推荐只能标注，不能只给默认项和推荐项；宿主选项有限时分批或按关键词过滤。
 3. `execution` 先选 project，再用 `projectId` 缩小范围。
-4. `assigned_to`：若 `.zentao-triage/bin/zentao-users.mjs` 可用则列出账号供选择；否则允许手动输入或留空。
+4. `assigned_to`：默认当前登录账号；若 `.zentao-triage/bin/zentao-users.mjs` 可用，使用 `currentUser` / `currentAccount`；脚本不可用时用 `zentao_list_my_bugs` 的 `assignedTo` 推断；仍无法确定就询问用户，不默认留空。只有用户明确选择「全部指派人」时才留空。
 5. 写入 `.zentao-triage/user-config.md`，字段为：
 
 ```yaml
 scope: <product|project|execution>
 scope_id: <正整数>
-assigned_to: "<账号或空>"
+# 默认当前登录账号；留空 = 全部指派人（需明确确认）
+assigned_to: "<当前账号>"
 test_cmd: ""
 build_cmd: ""
 commit_prefix: "fix(zentao-#{id}): "
@@ -124,7 +131,7 @@ limit: 50
 - 批量模式：
   - 有配置：要求 `scope` / `scope_id` 合法；
   - 无配置：只能走「我的 active bug」，需用户明确选择，不静默扫描所有产品；
-  - `assigned_to` 为空时仍然确认「将处理所有指派人的 active bug」。
+  - `assigned_to` 为空时默认先确定当前账号（`currentUser` 或 `list_my_bugs` 推断），询问「仅当前账号（推荐）/ 全部指派人（需确认）」；只有用户明确选择全量时才按空值处理，并二次确认。
 - 没有 `test_cmd` 时，自动模式降级为每修一个仍需人工确认（沿用现有规则）。
 
 ## 4. 审计数据流
@@ -142,6 +149,7 @@ limit: 50
 ### 4.1 拉取 active bug
 
 - 配置模式：`zentao_list_bugs(scope=<scope>, id=<scope_id>, limit=<limit>, assignedTo=<assigned_to 或省略>)`。
+- 审计只读：`assigned_to` 为空时可以按全量审计；修复模式的默认仍是当前登录账号。
 - `--my` / 无配置：`zentao_list_my_bugs(limit=<limit>, page=<page>)`。
 - 不向 MCP 传 `status`（当前 MCP 的 status 过滤不可靠）；拉回后本地筛 `status === "active"`。
 - 按 `total` 翻页，按 id 去重；不要只处理第一页。
@@ -387,8 +395,13 @@ active 但没有任何 commit 命中前缀。报告只列 id 列表和数量，�
 
 - 沿用现有 `bugfix-run` 纪律：不空 commit、不绕过 hooks、不自动 push、不谎称修复。
 - 只 `git add` 本 bug 改动的文件；不 `git add -A`。
-- 非 fixed 结项仍人工确认，且不阻塞主队列。
+- 非 fixed 不由 AI 判定：不改代码、不改禅道状态，记入「未处理清单」后继续，不阻塞主队列。
 - 失败的 bug 残留改动必须显式处理。
+- 每次 resolve（含幂等补 resolve）都带 `assignedTo=<openedBy>`，
+  把 bug 指派回创建人验证；创建人缺失或禅道拒绝时才省略并记录。
+- 当前 MCP 只有 `/resolve`、`/close`、`/active` 三个 bug 写入口，没有「只写备注不改状态」的工具，
+  因此未处理说明只落本地日志与会话结尾。
+- `get_bug` 默认 `includeImages=false`；只有不看图无法定位时才单独取图，避免上下文膨胀。
 
 ## 10. 改动清单
 
@@ -396,19 +409,21 @@ active 但没有任何 commit 命中前缀。报告只列 id 列表和数量，�
 
 - `scripts/find-fixed-unresolved.mjs`。
 - `scripts/test-find-fixed-unresolved.mjs`（Node 内置 test runner）。
+- `scripts/test-zentao-users.mjs`（mock 禅道 API，验证当前账号标记）。
 
 ### 修改
 
-- `skills/bugfix-run/SKILL.md`：run-first 菜单、无配置批量回退、轻量范围配置、`--audit` 只读模式、多 id 支持；版本 1.3.0。
-- `skills/bugfix-config/SKILL.md`：`commit_prefix` 校验改为「包含且只包含一个 `{id}`」；标注为高级配置命令；版本 1.3.0。
+- `skills/bugfix-run/SKILL.md`：run-first 菜单、无配置批量回退、轻量范围配置、`--audit` 只读模式、多 id 支持；默认只处理当前账号；scope 候选全量展示；版本 1.3.1。
+- `skills/bugfix-config/SKILL.md`：`commit_prefix` 校验改为「包含且只包含一个 `{id}`」；默认 `assigned_to` 为当前账号；scope 候选全量展示；标注为高级配置命令；版本 1.3.1。
+- `scripts/zentao-users.mjs`：输出 `currentAccount` / `currentUser`，并在用户列表标记 `current`；不输出密码/token。
 - `scripts/install.sh`：安装 helper；仍安装三个 skill。
 - `scripts/smoke-test.sh`：断言 helper 安装；三个 skill 的现有断言保留。
-- `scripts/validate.sh`：校验三个命令名；增加 README/AGENTS 对 `--audit` 与多 id 的覆盖检查。
-- `.github/workflows/validate.yml`：helper 语法检查与单元测试。
-- `README.md`：快速开始改为 run-first；命令表保留三个命令并标注 init/config 为首次/高级；增加 `--audit` 与多 id 示例；目录结构加入 helper。
+- `scripts/validate.sh`：校验三个命令名；增加 `--audit`、多 id、默认当前账号、全部候选的覆盖检查。
+- `.github/workflows/validate.yml`：helper 语法检查与单元测试（含用户列表 helper）。
+- `README.md`：快速开始改为 run-first；命令表保留三个命令并标注 init/config 为首次/高级；增加 `--audit` 与多 id 示例；说明默认当前账号与全量候选；目录结构加入 helper。
 - `docs/hosts.md`：说明审计是 run 的只读模式，所有宿主通用；无需额外的 MCP 写开关。
-- `examples/AGENTS.md`：补充 run-first 菜单、`--audit`、多 id。
-- `examples/user-config.example.md`：注明 `commit_prefix` 必须恰好一个 `{id}`。
+- `examples/AGENTS.md`：补充 run-first 菜单、`--audit`、多 id、默认当前账号、全量候选。
+- `examples/user-config.example.md`：注明 `commit_prefix` 必须恰好一个 `{id}`；`assigned_to` 默认当前账号，留空表示全部。
 
 > 不新增 `skills/bugfix-triage/`，不修改 `install.sh` 的 skill 数量。
 
@@ -431,10 +446,19 @@ active 但没有任何 commit 命中前缀。报告只列 id 列表和数量，�
 - 输入 JSON 非法 → 报错；
 - 输出字段与退出码。
 
+### 用户列表 helper 单元测试
+
+用本地 mock 禅道 API 覆盖：
+
+- 配置了 `ZENTAO_ACCOUNT` 时，对应账号被标记为 `current`；
+- 当前账号不在返回的用户列表时，仍提供合成的 `currentUser`；
+- 未配置账号时 `currentUser=null`；
+- 输出不包含密码或 token。
+
 ### 安装与静态校验
 
 - `smoke-test.sh` 覆盖 `.claude` / `.cursor` / tarball / 逐文件 / `bash -c` 场景，断言 helper 存在；三个 skill 的断言保持。
-- `validate.sh` 覆盖三个命令名、`--audit`、多 id 示例、frontmatter、gitignore、旧 MCP 安装方式。
+- `validate.sh` 覆盖三个命令名、`--audit`、多 id 示例、默认当前账号、全部候选、frontmatter、gitignore、旧 MCP 安装方式。
 - CI 在 macOS / Ubuntu / Windows 跑 helper 测试、shellcheck、`node --check`、smoke、validate。
 
 ### 本地 E2E
@@ -443,13 +467,14 @@ active 但没有任何 commit 命中前缀。报告只列 id 列表和数量，�
 
 1. **首次使用**：MCP 未配置时运行 `/bugfix-run` → 应给一次性 init 指引；配置完成并重启后，run 可正常进入菜单。
 2. **无配置批量**：不创建 `.zentao-triage/user-config.md`，选择「修复我的 active bug」→ 应能列出/处理我的 bug，不强制先 config。
-3. **轻量范围配置**：无配置时选择「配置范围后修复」→ 应能从禅道拉取 scope/用户，写入最小配置并继续。
-4. **审计**：用 `--audit` 和菜单项各运行一次，验证可补结项、仅其他分支、重新激活、无 helper 回退。
-5. **只读边界**：审计过程中不出现任何禅道写工具调用、代码改动、test/build 执行；报告写入 `.zentao-triage/runs/`。
-6. **修复模式写开关**：关闭 `ZENTAO_ALLOW_RESOLVE_BUG` 时，普通修复应拦截；审计仍可用。
-7. **多 id**：`/bugfix-run <id1> <id2>` 按顺序处理，单条失败不阻塞后续，日志分节。
-8. **现有配置非法**：配置存在但 scope 非法时，不静默回退；给 `/bugfix-config --show` 指引。
-9. 清理临时 bug、测试仓库和运行日志。
+3. **轻量范围配置**：无配置时选择「配置范围后修复」→ 应能从禅道拉取 scope/用户，写入最小配置并继续；`assigned_to` 默认当前账号；scope 候选展示全量，不能只给默认和推荐。
+4. **默认指派人**：`assigned_to` 留空时，流程应推荐当前账号而不是全量；选择「全部指派人」必须二次确认。
+5. **审计**：用 `--audit` 和菜单项各运行一次，验证可补结项、仅其他分支、重新激活、无 helper 回退。
+6. **只读边界**：审计过程中不出现任何禅道写工具调用、代码改动、test/build 执行；报告写入 `.zentao-triage/runs/`。
+7. **修复模式写开关**：关闭 `ZENTAO_ALLOW_RESOLVE_BUG` 时，普通修复应拦截；审计仍可用。
+8. **多 id**：`/bugfix-run <id1> <id2>` 按顺序处理，单条失败不阻塞后续，日志分节。
+9. **现有配置非法**：配置存在但 scope 非法时，不静默回退；给 `/bugfix-config --show` 指引。
+10. 清理临时 bug、测试仓库和运行日志。
 
 ### 验收标准
 
@@ -477,5 +502,5 @@ active 但没有任何 commit 命中前缀。报告只列 id 列表和数量，�
 ## 13. 发布
 
 - 完成后同步 README / AGENTS / hosts。
-- 版本：`bugfix-run` 1.3.0、`bugfix-config` 1.3.0；`bugfix-init` 保持 1.2.0。
+- 版本：`bugfix-run` 1.5.0、`bugfix-config` 1.3.1；`bugfix-init` 保持 1.2.0。
 - 本次不新增 tag/release；发布动作另行决定。
