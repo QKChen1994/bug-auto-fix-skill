@@ -77,7 +77,19 @@ raw 没有 CDN 缓存，能避免 `@main` 的陈旧缓存让你装到旧版；js
 
 > jsDelivr 对 `@main` 的缓存可能保留旧内容（实测出现过落后多个版本）。如果你是用上面那条 jsDelivr 命令跑的，
 > 注意安装器本身也可能来自缓存：输出里的 `installer v…` 明显偏旧，或 skill 版本不如 GitHub 上的新，
-> 请改用 raw 那条命令（或 `git clone` 后本地安装）。
+> 请改用 raw 那条命令（或 `git clone` 后本地安装）；想彻底避开缓存就用下面的「锁定版本安装」。
+
+### 锁定版本安装（可复现）
+
+```bash
+# 脚本与技能都取 v1.0.0：tag 不可变，不受 @main 缓存影响
+BUG_AUTO_FIX_BRANCH=v1.0.0 \
+  bash -c "$(curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/v1.0.0/scripts/install.sh)"
+```
+
+`BUG_AUTO_FIX_BRANCH` 同时决定脚本内部拉取 `SKILL.md` 与辅助脚本的分支名，填 tag 即整包装同一版本。
+若逐文件拉取失败走到 tarball 兜底，tag 需要显式指定：
+`BUG_AUTO_FIX_TARBALL=https://github.com/QKChen1994/bug-auto-fix-skill/archive/refs/tags/v1.0.0.tar.gz`。
 
 > ⚠️ **安全提示**：`curl | bash` 会直接执行远端脚本，请确认来源可信。想先审查，可先 `git clone` 查看 `scripts/install.sh` 源码再决定是否运行。
 >
