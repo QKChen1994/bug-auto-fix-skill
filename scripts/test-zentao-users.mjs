@@ -90,7 +90,7 @@ async function withServer(run) {
     ZENTAO_PASSWORD: 'secret',
   });
   try {
-    return await run(config);
+    return await run(config, url);
   } finally {
     await closeServer(server);
   }
@@ -248,5 +248,51 @@ test('unknown flag fails with JSON error', async () => {
     assert.equal(result.status, 1);
     assert.equal(result.json.ok, false);
     assert.match(result.json.error, /unknown flag/i);
+  });
+});
+
+test('reports baseUrl so callers can compare it with the live MCP', async () => {
+  await withServer(async (config, url) => {
+    const result = await runScript(config);
+
+    assert.equal(result.json.ok, true);
+    assert.equal(result.json.baseUrl, url);
+  });
+});
+
+test('explicit --config that is unusable fails instead of falling back', async () => {
+  await withServer(async (config) => {
+    const result = await runScript(config, ['--config', path.join(os.tmpdir(), 'no-such-config.json')]);
+
+    assert.equal(result.status, 1);
+    assert.equal(result.json.ok, false);
+    assert.match(result.json.error, /explicit config unusable/i);
+  });
+});
+
+test('explicit --config without a zentao entry fails instead of falling back', async () => {
+  await withServer(async (config) => {
+    const decoyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zentao-users-decoy-'));
+    tmpDirs.push(decoyDir);
+    const decoy = path.join(decoyDir, 'mcp.json');
+    fs.writeFileSync(decoy, JSON.stringify({ mcpServers: { other: { env: {} } } }));
+
+    const result = await runScript(config, ['--config', decoy]);
+
+    assert.equal(result.status, 1);
+    assert.equal(result.json.ok, false);
+    assert.match(result.json.error, /explicit config unusable/i);
+  });
+});
+
+test('ZENTAO_MCP_CONFIG pointing at an unusable file also fails instead of falling back', async () => {
+  await withServer(async (config) => {
+    const result = await runScript(config, [], {
+      ZENTAO_MCP_CONFIG: path.join(os.tmpdir(), 'no-such-env-config.json'),
+    });
+
+    assert.equal(result.status, 1);
+    assert.equal(result.json.ok, false);
+    assert.match(result.json.error, /explicit config unusable/i);
   });
 });

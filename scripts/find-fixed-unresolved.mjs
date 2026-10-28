@@ -4,6 +4,12 @@
 import fs from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 
+// 下游提前关闭管道（| head、失败的 jq）时不要让进程抛栈。
+process.stdout.on('error', (err) => {
+  if (err.code === 'EPIPE') return;
+  throw err;
+});
+
 const USAGE = `Usage: find-fixed-unresolved.mjs --prefix <template> --bugs <file> [--repo <path>]
 
   --prefix  提交前缀模板，必须恰好包含一个 {id}
@@ -123,15 +129,13 @@ function resolveRepo(repo) {
     fail(`not a git repository: ${repo}`);
   }
   if (!topLevel) fail(`not a git repository: ${repo}`);
-  try {
-    return fs.realpathSync(topLevel);
-  } catch {
-    return topLevel;
-  }
+  return canonicalPath(topLevel);
 }
 
 function readHead(repo) {
-  const head = gitText(repo, ['rev-parse', 'HEAD']).trim();
+  const headResult = gitStatus(repo, ['rev-parse', 'HEAD']);
+  if (headResult.status !== 0) fail('repository has no commits');
+  const head = headResult.stdout.trim();
   if (!head) fail('repository has no commits');
   const branch = gitText(repo, ['rev-parse', '--abbrev-ref', 'HEAD']).trim();
   let shallow = false;
@@ -140,7 +144,7 @@ function readHead(repo) {
   } catch {
     shallow = false;
   }
-  return { head, branch, shallow };
+  return { head, branch, shallow, detached: branch === 'HEAD' };
 }
 
 function scanCommits(repo) {
@@ -203,10 +207,10 @@ function inspectCommit(repo, commit, head) {
       '--no-commit-id',
       '--name-only',
       '-r',
+      '-z',
       commit.hash,
     ])
-      .split('\n')
-      .map((line) => line.trim())
+      .split('\0')
       .filter(Boolean);
   } catch (err) {
     base.error = err.message;
@@ -252,7 +256,7 @@ function main() {
   const repo = resolveRepo(opts.repo);
   const matcher = buildMatcher(opts.prefix);
   const { ids, warnings } = readBugs(opts.bugs);
-  const { head, branch, shallow } = readHead(repo);
+  const { head, branch, shallow, detached } = readHead(repo);
   const commits = scanCommits(repo);
 
   const grouped = new Map();
@@ -279,6 +283,7 @@ function main() {
     head,
     branch,
     shallow,
+    detached,
     scannedCommits: commits.length,
     matches,
   };

@@ -1,6 +1,6 @@
 ---
 name: bugfix-init
-version: 1.2.0
+version: 1.2.1
 description: 初始化或重置禅道 MCP 连接——检测 zentao MCP，未安装则引导官方安装，配置 ZENTAO_URL / 账号 / 密码与 ZENTAO_ALLOW_RESOLVE_BUG；支持 --reset 仅重写 zentao 条目。
 ---
 
@@ -62,7 +62,8 @@ description: 初始化或重置禅道 MCP 连接——检测 zentao MCP，未安
    - `ZENTAO_URL` 是禅道地址（如 `http://127.0.0.1:18080`）。
      不要写成旧变量名 `ZENTAO_BASE_URL`，当前 MCP 不识别。
    - **必须**设 `ZENTAO_ALLOW_RESOLVE_BUG=true`，否则 `zentao_resolve_bug` 只能 dryRun，
-     无法真正标记 resolved。
+     无法真正标记 resolved。这个开关同时是备注回写（`zentao-remark.mjs`）的写开关：
+     没开时判不出预期的 bug 只写本地日志，不会在禅道留备注。
    - 如果已有可用的客户端级 MCP 配置，也可以把它里面的 `zentao.env` 原样复制到项目 `.mcp.json`。
 
 5. **重启客户端**：MCP 配置改动后需重启当前 AI 客户端 / agent 会话，让 `zentao_*` 工具生效。

@@ -54,7 +54,7 @@ bash scripts/install.sh /path/to/your/project
 
 ```bash
 git clone https://github.com/QKChen1994/bug-auto-fix-skill.git
-# 把三个 skill 复制到目标项目的宿主 skills 目录（自动探测 CodeBuddy/Cursor/Trae/Qoder/Claude/Codex）
+# 写入权威源并给宿主建链接（自动探测 Claude/Qoder/CodeBuddy/Trae/ZCode 等目录）
 bash bug-auto-fix-skill/scripts/install.sh /path/to/your/project
 ```
 
@@ -71,7 +71,13 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-
 bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@main/scripts/install.sh)"
 ```
 
-脚本优先从 jsDelivr 逐文件拉取三个 `SKILL.md`，失败再回退 GitHub tarball；装完即清理，本地无需保留仓库。jsDelivr 对 `@main` 有缓存（一般几分钟到数小时），打了 tag 后建议改用具体 tag（如 `@v1.2.0`）更稳。
+脚本逐文件拉取三个 `SKILL.md` 时按 **GitHub raw → jsDelivr → tarball** 的顺序回退：
+raw 没有 CDN 缓存，能避免 `@main` 的陈旧缓存让你装到旧版；jsDelivr 只作国内兜底，tarball 是最后一道保险。
+装完会打印 `installer v…` 与三个 skill 的实际版本，便于确认装到的是不是最新版。
+
+> jsDelivr 对 `@main` 的缓存可能保留旧内容（实测出现过落后多个版本）。如果你是用上面那条 jsDelivr 命令跑的，
+> 注意安装器本身也可能来自缓存：输出里的 `installer v…` 明显偏旧，或 skill 版本不如 GitHub 上的新，
+> 请改用 raw 那条命令（或 `git clone` 后本地安装）。
 
 > ⚠️ **安全提示**：`curl | bash` 会直接执行远端脚本，请确认来源可信。想先审查，可先 `git clone` 查看 `scripts/install.sh` 源码再决定是否运行。
 >
@@ -88,12 +94,16 @@ bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@
 
 `install.sh` 会做这些事：
 
-- 把三个 skill 写入权威源 `<项目根>/.agents/skills/<name>/SKILL.md`；
-- 探测项目里存在的宿主目录（`.claude` / `.qoder` / `.trae` / `.codebuddy` / `.cursor` / `.codex` / `.dsh` …），
+- 把三个 skill 写入权威源 `<项目根>/.agents/skills/<name>/SKILL.md`，并打印三个 skill 的实际版本；
+- 探测项目里存在的宿主目录（`.claude` / `.qoder` / `.qoder-cn` / `.trae` / `.codebuddy` / `.zcode` /
+  `.cursor` / `.windsurf` / `.copilot` / `.gemini` / `.codex` / `.dsh` / `.opencode` / `.openclaw`），
   给**所有**不原生读 `.agents/skills` 的宿主建软链接（不再只装第一个命中的）；一个都没探测到时默认按 Claude Code 布局；
+  其中 `opencode` / `openclaw` 只是假定原生读取、未实测，若技能不出现请用 `--hosts opencode --copy` 显式安装；
 - 目标位置已有真实目录时：内容一致就替换成链接；内容不同先备份成 `<name>.bak-<时间戳>` 再替换，不会静默吞掉你手改的内容；
-- 把可选辅助脚本安装到 `.zentao-triage/bin/`（test/build 探测、指派人列表、审计 helper；下载失败不影响安装）；
-- 确保目标项目 `.gitignore` 忽略 `.zentao-triage/` 与 `.mcp.json`（没有 `.gitignore` 则创建），避免本地配置和禅道凭据进版本库。
+- 权威源里的 `SKILL.md` 被你手改过时同样先备份成 `SKILL.md.bak-<时间戳>` 再更新，不会静默覆盖；
+- 把可选辅助脚本安装到 `.zentao-triage/bin/`（test/build 探测、指派人列表、备注回写、审计 helper；下载失败不影响安装）；
+- 确保目标项目 `.gitignore` 忽略 `.zentao-triage/` 与 `.mcp.json`（没有 `.gitignore` 则创建），避免本地配置和禅道凭据进版本库；
+- `--hosts` 全部无效、或「目标目录 + `--user`」同时给出时直接报错退出，不会假装成功。
 
 ### 安装选项
 
@@ -195,7 +205,8 @@ bash scripts/install.sh /path/to/project --hosts claude,qoder
 - **默认全自动，不弹模式确认**：`/bugfix-run` 直接按「修复 → 验证 → commit → resolve → 指派回创建人」跑完，不再询问执行模式；需要逐条把关时加 `--noauto`。唯一会打破全自动的验证类情况是 `test_cmd` 和 `build_cmd` 都为空（没有任何验证手段），此时自动降级为逐条确认并在日志说明，避免无验证谎称修复。
 - **AI 只判定 fixed，不阻塞队列**：只有确实改了代码并通过验证的 bug 才会 commit + resolve(fixed)。判不出预期、疑似有意为之的 bug 一律不改代码、**不改禅道状态**，也不会卡住后续 bug——它们进「未处理清单」，结尾统一汇报。AI 不主动提出 `bydesign` / `tostory` / `duplicate` / `notrepro` 这类结论（没有需求文档和原型时，「代码和代码一致」不构成设计如此），只有用户明确指定 resolution 时才代为执行。
 - **单条 / 多 id / 列表选择**：`/bugfix-run <bugId>` 直接指定；`/bugfix-run <id> <id>` 按顺序逐条处理；`--pick` 从 active 列表选择（宿主支持 `multiSelect` 时可多选）；`--dry-run` 只出方案，`--no-resolve` 只提交不回写。
-- **未处理清单会落盘**：例如 10 条 bug 中 8 条修复并 resolve(fixed)，2 条判不出预期 → 状态仍是 active，在会话汇总和 `.zentao-triage/runs/<时间戳>.md` 的 `## 未处理清单` 中列出 id、标题、原因和建议下一步。当前 MCP 没有「只写备注、不改状态」的 bug 工具，所以这些说明只落在本地日志和会话结尾，不会出现在禅道里。
+- **判不出预期的原因会写回禅道备注，但不改状态**：禅道 18.x 的 REST 没有独立备注接口，所以用 `POST /bugs/{id}/assign` 夹带 `comment`——把 bug 指派给当前账号（`mailto` 留空不触发邮件），只产生一条「已指派」动作，**status 仍是 active**。备注只写事实和依据（例如「步骤里没有预期行为，无法判断对错」），不带「AI 自动修复」这类署名式字样。写回需要 `ZENTAO_ALLOW_RESOLVE_BUG=true`（与 resolve 共用写开关）；该开关未开、helper 缺失、接口拒绝或 `baseUrl` 与当前 MCP 不一致时不重试，只在本地日志和结尾汇报里标注「禅道备注未写入」；`--no-resolve` 与 `--dry-run` 时完全不写备注。
+- **未处理清单会落盘**：例如 10 条 bug 中 8 条修复并 resolve(fixed)，2 条判不出预期 → 状态仍是 active，原因写进禅道备注，同时在会话汇总和 `.zentao-triage/runs/<时间戳>.md` 的 `## 未处理清单` 中列出 id、标题、原因、建议下一步与备注是否写入。
 - **结项指派回创建人**：每次 `zentao_resolve_bug`（含幂等补 resolve）都带 `assignedTo=<openedBy>`，把 bug 交回报障人验证；创建人缺失或禅道拒绝该指派时才省略，并在日志说明。
 - **控制上下文体积**：`get_bug` 默认 `includeImages=false`，只有不看图就无法定位时才单独取图；审计只对命中的 bug 拉详情；列表和候选都按 `total` 翻页，不把第一页当全量。
 - **提交纪律**：开跑记录 `git status` 基线；每个 bug 只 stage 自己改动的文件；不 `git add -A`、不绕过 hooks、不自动 push；失败的 bug 残留改动必须显式处理。
@@ -235,6 +246,8 @@ bugAutoFixSkill/
 │   ├── test-detect-commands.sh
 │   ├── zentao-users.mjs    # 读取禅道用户列表并标记当前账号
 │   ├── test-zentao-users.mjs
+│   ├── zentao-remark.mjs   # 通过 assign 夹带 comment 写备注（不改 status）
+│   ├── test-zentao-remark.mjs
 │   ├── find-fixed-unresolved.mjs      # 审计：按 commit 前缀匹配 bug
 │   ├── test-find-fixed-unresolved.mjs
 │   ├── smoke-test.sh       # 安装脚本冒烟测试

@@ -14,6 +14,16 @@
 - 后续修正：1.5.2 / 1.3.3 修「当前账号」判定来源——脚本可能穿透到别的客户端配置，读到另一个禅道实例的账号。
   `zentao-users.mjs` 新增 `configPath` 输出与 `--config` 覆盖；skill 改为以 `zentao_list_my_bugs` 的
   `assignedTo`（会话实际连接的 MCP）为权威身份，与脚本账号不一致时显示双方并询问，绝不静默写入。
+- 后续修正：1.6.0 / 1.4.0 给 `zentao-users.mjs` 增加 `baseUrl` 输出（与 `zentao_health_check` 直接比对，
+  不一致说明读到别的实例，其用户名单不可用），并让显式 `--config` / `ZENTAO_MCP_CONFIG` 不可用时直接报错、
+  不再静默回退；审计 helper 输出 `detached`、`changedFiles` 改用 `-z` 保留中文/空格/换行文件名、空仓库给出
+  「没有提交」而不是裸 git 错误，并在技能里写明「只匹配 subject、多 id 只取第一个」的口径；
+  `install.sh` 改为 GitHub raw 优先、jsDelivr 兜底，打印安装器与各 skill 版本，权威源手改先备份，
+  `--hosts` 全无效与「目标目录 + `--user`」冲突时直接报错。
+- 后续修正：1.7.0 / 1.2.1 判不出预期的 bug 不再只写日志——新增 `zentao-remark.mjs`，走禅道 REST 的
+  `POST /bugs/{id}/assign` 把原因夹在 `comment` 里（指派给当前账号、`mailto` 留空，只多一条「已指派」动作，
+  `status` 仍是 active），并受 `ZENTAO_ALLOW_RESOLVE_BUG` 写开关约束；`--no-resolve` / `--dry-run` 不写。
+  同时删除备注与 resolve comment 里的「AI 自动修复」字样（resolve comment 改为「修复提交 <hash>」）。
 - 关联文档：`README.md`、`docs/hosts.md`、`examples/AGENTS.md`
 
 ## 1. 背景与目标
@@ -50,7 +60,7 @@
 
 组合规则：
 
-- `--audit` 可以与 `--my` 组合；与显式 bug id、`--pick`、`--dry-run`、`--no-resolve` 组合属于无效用法，提示后停止。
+- `--audit` 可以与 `--my` 组合；与显式 bug id、`--pick`、`--dry-run`、`--no-resolve`、`--noauto` 组合属于无效用法，提示后停止。
 - `--my` 可以与 `--pick` 组合；与显式 bug id 组合属于无效用法。
 - 未知参数：提示用法后停止。
 - 参数可以出现在任意位置，但显式 id 与模式开关不能混用到语义冲突。
@@ -209,6 +219,7 @@ node .zentao-triage/bin/find-fixed-unresolved.mjs \
   "head": "<full hash>",
   "branch": "main",
   "shallow": false,
+  "detached": false,
   "scannedCommits": 42,
   "matches": [
     {
@@ -238,18 +249,19 @@ node .zentao-triage/bin/find-fixed-unresolved.mjs \
 
 ### 5.5 算法
 
-1. 校验输入、仓库、前缀；读取 HEAD、分支、是否浅克隆。
+1. 校验输入、仓库、前缀；读取 HEAD、分支、是否浅克隆；HEAD 不在分支上时标记 `detached=true`。
 2. 用一次 `git log --all` 拉取所有 commit 的 hash、author date、commit date、本地 commit date、subject；使用制表符分隔并对 subject 重新拼接，避免标题中的空格/制表符干扰。
 3. 把 `commit_prefix` 按 `{id}` 拆成前后两段，转义正则元字符，拼成 `(\d+)` 的匹配式；不强制锚定行首，以兼容 `Revert "..."` 和历史前缀。
+   **匹配范围只有 subject**：commit body 里的引用不算；一个 subject 出现多个 id 时只取第一个。报告必须按这个口径表述（「按 subject 口径未命中」），不能等同于「未修复」。
 4. 只保留 id 出现在 active 集合中的 commit；按 id 分组，按 commit date 倒序。
 5. 对每个命中的 commit 计算：
    - `shortHash`：`git rev-parse --short=7`；
    - `refs`：`git for-each-ref --contains <hash> --format='%(refname:short)'`；若从 HEAD 可达，补充 `HEAD`；
    - `reachableFromHead`：`git merge-base --is-ancestor <hash> HEAD`；
    - `isMerge`：`git rev-list --parents -n 1 <hash>` 的父节点数大于 1；
-   - `changedFiles`：`git diff-tree --root --no-commit-id --name-only -r <hash>`；合并提交通常为空，因此 `isEmpty` 只在非合并提交且文件数为 0 时为 true；
+   - `changedFiles`：`git diff-tree --root --no-commit-id --name-only -r -z <hash>`，按 `\0` 切分以保留中文/空格/换行文件名原样；合并提交通常为空，因此 `isEmpty` 只在非合并提交且文件数为 0 时为 true；
    - `isRevert`：subject 以 `Revert "` 开头。
-6. 输出 JSON。单个 commit 计算失败时，保留该 commit 并增加 `error` 字段，不让整次扫描失败。
+6. 输出 JSON；`shallow=true` 时报告要标注「浅克隆，结果可能不完整」。单个 commit 计算失败时，保留该 commit 并增加 `error` 字段，不让整次扫描失败。
 
 ### 5.6 回退流程
 

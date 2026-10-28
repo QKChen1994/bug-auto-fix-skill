@@ -34,8 +34,10 @@
   以 `名称(id=...)` 作为宿主的选项让用户选，不要猜 id；**展示全部候选**，
   默认/推荐只能标注，不能只给默认项和推荐项；未连通时回退手动输入并提示 `/bugfix-init`。
 - `project`/`execution` 要求 Bug 已关联到对应范围；`assigned_to` 默认当前登录账号，且「当前账号」以
-  `zentao_list_my_bugs` 的 `assignedTo`（会话实际连的禅道）为准；`zentao-users.mjs` 默认只输出
-  `currentUser` 与 `configPath`（它读了哪个配置文件），两者不一致时摆出来让用户确认，不静默写入。
+  `zentao_list_my_bugs` 的 `assignedTo`（会话实际连的禅道）为准；`zentao-users.mjs` 默认输出
+  `currentAccount` / `currentUser` / `totalUsers` / `configPath`（读了哪个配置文件）/ `baseUrl`（该文件指向的实例）。
+  **先比 `baseUrl` 与 `zentao_health_check` 的地址**：不同说明读到了别的实例，用户名单不可用，让用户用
+  `--config <同实例的 mcp.json>` 指定后重跑；同实例再比账号，不一致时摆出来让用户确认，不静默写入。
   换人用 `--keyword <账号或姓名子串>` 过滤，确认要看全部才用 `--list`；只有明确选择「全部指派人」时才留空。
 - `test_cmd`/`build_cmd` 优先运行 `.zentao-triage/bin/detect-commands.sh` 获取建议；
   没有脚本时扫描 package.json / Makefile / go.mod / pom.xml / build.gradle / composer.json /
@@ -71,7 +73,11 @@
 5. 修复（默认全自动，不弹模式确认）：`get_bug(includeImages=false)`（只在必须看图定位时再单独取图）→ 用 `git log --fixed-strings --grep` 查已有 commit（避免重复提交）→
    最小修复 → 验证闸门（`test_cmd` > `build_cmd` > 人工）→
    **AI 不判定非 fixed**：判不出预期时不改代码、不改禅道状态，记入「未处理清单」后继续下一条，
-   不主动提 bydesign/tostory/duplicate/notrepro，也不阻塞队列；只有用户明确指定 resolution 才代为执行 →
+   不主动提 bydesign/tostory/duplicate/notrepro，也不阻塞队列；只有用户明确指定 resolution 才代为执行；
+   原因用 `.zentao-triage/bin/zentao-remark.mjs --bug <id> --account <当前账号> --expect-url <health_check baseUrl> --comment "<原因>"`
+   写回备注（走 assign 夹带：指派给当前账号、`mailto` 留空，只多一条「已指派」动作，**status 仍是 active**），
+   备注只写事实与依据、不写「AI 自动修复」；写回失败（未开 `ZENTAO_ALLOW_RESOLVE_BUG`、helper 缺失、
+   `baseUrl` 不一致）不重试，只在日志和结尾标注「禅道备注未写入」 →
    只 `git add` 本 bug 文件 → commit（模板含 `{id}`）→ resolve(fixed, commit hash, assignedTo=<openedBy>)；
    **每次结项都把 bug 指派回创建人**（含幂等补 resolve），创建人缺失或禅道拒绝时才省略并记录 →
    `--no-resolve` 时跳过回写。多 id 每条独立提交，单条失败不阻塞后续。
@@ -83,7 +89,7 @@
    给 `/bugfix-run <id> <id>` 交接。只允许 4 个读工具和只读 git 命令；不改代码、不跑测试、
    不写禅道。审计结束即停止，不进入修复流程。
 7. 失败：3 轮修不好则跳过并汇报；残留改动询问保留 / stash / 撤销，不得混入下一条。
-8. 收口：结尾统一输出「未修改的 bug」清单 `#id 标题 — 原因 — 建议下一步`（状态仍是 active，未被改动），
-   写日志 `## 未处理清单`；不追问要不要标成设计如此，怎么结项由提 bug 的人决定。
+8. 收口：结尾统一输出「未修改的 bug」清单 `#id 标题 — 原因 — 建议下一步 — 备注是否写入`
+   （状态仍是 active，未被改动），写日志 `## 未处理清单`；不追问要不要标成设计如此，怎么结项由提 bug 的人决定。
 9. 纪律：默认只处理当前账号的 bug，全量需明确选择；不空 commit、不绕过 git hooks、
    不自动 push、不谎称修复；不提交无关文件；不读取凭据；报告/日志只写 `.zentao-triage/`。

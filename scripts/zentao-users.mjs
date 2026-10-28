@@ -7,12 +7,19 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+// 下游提前关闭管道（| head、失败的 jq）时不要让进程抛栈。
+process.stdout.on('error', (err) => {
+  if (err.code === 'EPIPE') return;
+  throw err;
+});
+
 const USAGE = `Usage: zentao-users.mjs [--list] [--keyword <text>] [--config <path>] [--help]
 
-  默认只输出 currentAccount / currentUser / totalUsers / configPath，不返回用户列表。
+  默认只输出 currentAccount / currentUser / totalUsers / configPath / baseUrl，不返回用户列表。
   --list      输出全部用户（account/realname/role/current）
   --keyword   按账号或姓名子串过滤后输出用户列表，并给出 matched 数量
-  --config    指定 MCP 配置文件，优先于 ZENTAO_MCP_CONFIG 与自动探测
+  --config    指定 MCP 配置文件，优先于 ZENTAO_MCP_CONFIG 与自动探测；
+              文件不可用时直接报错，不会回退到其他配置
 `;
 
 function parseArgs(argv) {
@@ -46,27 +53,42 @@ function parseArgs(argv) {
   return opts;
 }
 
-function buildCandidates(explicit) {
+function implicitCandidates() {
   return [
-    explicit,
-    process.env.ZENTAO_MCP_CONFIG,
     join(process.cwd(), ".mcp.json"),
     join(homedir(), ".codebuddy", "mcp.json"),
     join(homedir(), ".cursor", "mcp.json"),
-  ].filter(Boolean);
+  ];
+}
+
+function readEnv(path) {
+  if (!existsSync(path)) return null;
+  try {
+    const config = JSON.parse(readFileSync(path, "utf8"));
+    const env = config?.mcpServers?.zentao?.env;
+    return env?.ZENTAO_URL ? env : null;
+  } catch {
+    return null;
+  }
 }
 
 function loadEnv(explicit) {
-  const candidates = buildCandidates(explicit);
-  for (const path of candidates) {
-    if (!existsSync(path)) continue;
-    try {
-      const config = JSON.parse(readFileSync(path, "utf8"));
-      const env = config?.mcpServers?.zentao?.env;
-      if (env?.ZENTAO_URL) return { env, configPath: path };
-    } catch {
-      // try next candidate
+  // 显式指定的配置不可用时直接报错：静默回退会读到另一个禅道实例的用户列表。
+  for (const path of [explicit, process.env.ZENTAO_MCP_CONFIG].filter(Boolean)) {
+    const env = readEnv(path);
+    if (!env) {
+      throw new Error(
+        `explicit config unusable: ${path} ` +
+          "(missing file, invalid JSON, or no mcpServers.zentao.env.ZENTAO_URL)",
+      );
     }
+    return { env, configPath: path };
+  }
+
+  const candidates = implicitCandidates();
+  for (const path of candidates) {
+    const env = readEnv(path);
+    if (env) return { env, configPath: path };
   }
   throw new Error(
     `no usable ZenTao MCP config found (tried: ${candidates.join(", ") || "nothing"}); ` +
@@ -153,6 +175,7 @@ try {
   const result = {
     ok: true,
     configPath,
+    baseUrl,
     currentAccount: account,
     currentUser,
     totalUsers: users.length,

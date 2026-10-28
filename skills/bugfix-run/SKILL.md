@@ -1,7 +1,7 @@
 ---
 name: bugfix-run
-version: 1.5.3
-description: 禅道 Bug 修复主入口——默认全自动且只处理当前账号的 active bug，无配置也能直接开始；支持按范围批量、从列表选择、指定多条 id、只读审计已修复未结项（--audit）、--noauto 逐条确认；只 resolve fixed 并指派回创建人，判不出预期的 bug 不改状态只在结尾汇报；支持 --my / --dry-run / --no-resolve。
+version: 1.7.0
+description: 禅道 Bug 修复主入口——默认全自动且只处理当前账号的 active bug，无配置也能直接开始；支持按范围批量、从列表选择、指定多条 id、只读审计已修复未结项（--audit）、--noauto 逐条确认；只 resolve fixed 并指派回创建人，判不出预期的 bug 不改状态、把原因写进禅道备注；支持 --my / --dry-run / --no-resolve。
 ---
 
 # bugfix-run：修复禅道 Bug（主入口）
@@ -87,7 +87,7 @@ description: 禅道 Bug 修复主入口——默认全自动且只处理当前�
 
 - 写日志/报告前确保 `.zentao-triage/` 已被 `.gitignore` 忽略；没有就创建/追加。
 - 审计报告、临时文件、运行日志都只写这里，不提交。
-- 辅助脚本（`zentao-users.mjs`、`detect-commands.sh`、`find-fixed-unresolved.mjs`）按
+- 辅助脚本（`zentao-users.mjs`、`zentao-remark.mjs`、`detect-commands.sh`、`find-fixed-unresolved.mjs`）按
   `.zentao-triage/bin/<name>` → `scripts/<name>` → `$HOME/.zentao-triage/bin/<name>`
   （`install.sh --user` 的用户级安装）顺序查找；三处都没有才走对应章节写明的回退方式。
 
@@ -135,12 +135,15 @@ description: 禅道 Bug 修复主入口——默认全自动且只处理当前�
 2. 调 `zentao_list_scopes(kind=<scope>, limit=100)`，按 `page` 翻页直到覆盖 `total`；以 `名称 (id=...)` 展示拉取到的全部候选，默认/推荐项只能标注，**不能只给默认项和推荐项两个**；宿主选项数有限时分批展示或让用户输入关键词在全量候选中过滤。不要要求手记 id，不要猜 id。
 3. `execution` 先选 project，再用 `projectId` 缩小范围。
 4. `assigned_to`：**默认只处理当前登录账号**，且「当前账号」以会话实际连接的 MCP 为准，不是配置文件里的账号。
-   - 先用 `zentao_list_my_bugs` 返回项的 `assignedTo` 确定 MCP 实际登录账号；
-     再用 `node .zentao-triage/bin/zentao-users.mjs` 取 `currentUser`（姓名）与 `configPath`（它实际读了哪个配置文件）。
-   - 两者一致 → 展示「仅当前账号 <account>（<realname>）（推荐）」；
+   - 先用 `zentao_list_my_bugs` 返回项的 `assignedTo` 确定 MCP 实际登录账号，并用 `zentao_health_check` 的 `baseUrl` 记住「当前实例」；
+     再用 `node .zentao-triage/bin/zentao-users.mjs` 取 `currentUser`（姓名）、`configPath`（实际读了哪个配置文件）与 `baseUrl`（该文件指向的实例）。
+   - **先比 `baseUrl`**：脚本的 `baseUrl` 与 MCP 的 `baseUrl` 不同 → 说明读到了另一个禅道实例，**它的用户名单不可用**（不要用来选人、
+     也不要写入 `assigned_to`）；同时显示两个地址与 `configPath`，让用户用 `--config <路径>` 指定与当前 MCP 同实例的配置后重跑。
+     没有可用配置文件时（例如宿主把 MCP 配置存在应用内部、不是文件），只按 MCP 账号处理，并明确告知「用户名单不可用」。
+   - `baseUrl` 相同再比账号：一致 → 展示「仅当前账号 <account>（<realname>）（推荐）」；
      **不一致 → 同时显示 MCP 账号和脚本的 `currentAccount` + `configPath` 并询问用哪个，
-     绝不静默写入脚本读到的账号**（多半是脚本穿透到了别的客户端配置，可用 `--config <路径>` 指定后重跑）；
-     `list_my_bugs` 为空、推断不出身份时，可以用脚本账号，但必须把 `configPath` 显示出来让用户确认。
+     绝不静默写入脚本读到的账号**；`list_my_bugs` 为空、推断不出身份时，可以用脚本账号，但必须把 `configPath` 显示出来让用户确认。
+   - `--config` 指向的文件不可用（不存在、JSON 无效、没有 zentao 条目）会直接报错，不会回退到别的配置；报错时按上面的规则换路径重试。
    - 另提供「选择其他账号」「全部指派人（不推荐，需明确确认）」。
    - 默认调用只返回当前账号与 `totalUsers`；要换人用 `--keyword <账号或姓名子串>` 过滤，
      `matched` 为 0 就换关键词；只有用户明确要看全部时才用 `--list`，不要把整份名单复述进对话。
@@ -231,19 +234,24 @@ AI 只对「确实改了代码并通过验证」的 bug 执行 resolve(fixed)；
    - AI **不主动给出任何非 fixed 的 resolution**——`bydesign` / `tostory` / `duplicate` / `external` /
      `notrepro` / `postponed` / `willnotfix` 都不行。没有需求文档和原型时，「代码和代码一致」
      不构成「设计如此」的证据，这个判断属于提 bug 的人。
-   - 不修代码、不 commit、**不调用任何禅道写工具**，这条 bug 原样留在 active。
-   - 加入「未处理清单」：`{id, 标题, 未处理原因, 依据/线索, 建议下一步}`，立即继续下一条。
-   - 原因要具体、不带结论性标签：写「复现结果与现有实现一致，疑似预期差异」，
-     不要写「这是设计如此」；写「步骤里没有预期行为，无法判断对错」，不要替产品下结论。
+   - 不修代码、不 commit、**不改 status**；怎么结项仍由提 bug 的人决定。
+   - 用备注把原因写回禅道（禅道 18.x REST 没有独立备注接口，走 assign 夹带）：
+     `node .zentao-triage/bin/zentao-remark.mjs --bug <id> --account <MCP 当前账号> --expect-url <health_check 的 baseUrl> --comment "<原因>"`
+     - 副作用：会产生一条「已指派」动作，把 bug 指派给 `--account`（原本多半就是自己），**status 仍是 active**；
+       `mailto` 留空不触发邮件。`--noauto` 时先展示将写入的备注再确认；`--dry-run` 只打印请求不写入。
+     - 备注只写事实与依据：写「步骤里没有预期行为，无法判断对错」「复现结果与现有实现一致，疑似预期差异」；
+       **不要写「AI 自动修复」这类署名式字样**，也不要写「这是设计如此」。
+     - `--no-resolve` 与 `--dry-run` 时只写日志，不写备注（不向禅道回写任何东西）。
+     - 写失败（helper 缺失、`ZENTAO_ALLOW_RESOLVE_BUG` 未开、接口拒绝、`baseUrl` 不一致）→
+       不重试、不改状态，只写日志，并在结尾标注「禅道备注未写入」及原因。
+   - 加入「未处理清单」：`{id, 标题, 未处理原因, 依据/线索, 建议下一步, 备注是否写入}`，立即继续下一条。
    - 只有**用户明确指定**某条 bug 的 resolution 时，才代为执行
      `zentao_resolve_bug(..., assignedTo=<openedBy>)`；AI 不代做决定，也不追问「要不要标成设计如此」。
-   - 当前 MCP 没有「只写备注、不改状态」的 bug 工具，所以这些说明只落在运行日志和结尾汇报里；
-     要让禅道里可见，由用户在页面上补备注，或先给上游 MCP 增加 comment 工具。
 6. **fixed 提交与结项**：
    - 只 `git add -- <本 bug 改动的文件>`；严禁 `git add -A` / `git add .`。
    - 没有实际代码改动 → 不 commit、不 resolve，报告原因。
    - 提交信息 = 渲染后的 `commit_prefix` + 一句话摘要（前缀与摘要间没有空格则补一个）。
-   - 全自动且验证通过 → commit → `zentao_resolve_bug(bugId, resolution="fixed", comment="AI 自动修复，commit <hash>", assignedTo=<openedBy>)`。
+   - 全自动且验证通过 → commit → `zentao_resolve_bug(bugId, resolution="fixed", comment="修复提交 <hash>", assignedTo=<openedBy>)`。
    - **结项必须把 bug 指派回创建人**：`assignedTo` 取本 bug `zentao_get_bug` 返回的 `openedBy.account`，
      让报障人验证；幂等「直接补 resolve」时同样带上。
      `openedBy` 缺失时省略该参数；带 `assignedTo` 被拒时，回退为不带 `assignedTo` 再 resolve 一次，
@@ -275,12 +283,13 @@ AI 只对「确实改了代码并通过验证」的 bug 执行 resolve(fixed)；
 ### 3.3 未处理清单收口
 
 - 主流程结束后统一输出「未修改的 bug」清单：
-  `#id 标题 — 未处理原因 — 建议下一步`，并明确这些 bug 仍是 active、状态未被改动。
-- 写入运行日志的 `## 未处理清单` 段。
+  `#id 标题 — 未处理原因 — 建议下一步 — 备注`（备注列写「已写入禅道」或「未写入：原因」），
+  并明确这些 bug 仍是 active、状态未被改动。
+- 写入运行日志的 `## 未处理清单` 段，备注是否写入同一段记录。
 - 不追问「要不要标成设计如此 / 转需求」，也不代为改状态；怎么结项由提 bug 的人在禅道里决定。
 - 用户如果主动指定某条的 resolution，才按第 5 条的例外代为执行。
 - 示例：10 条 bug 中 8 条改代码并 resolve(fixed)，2 条判不出预期 → 不碰它们的状态，
-  结尾列出这 2 条的标题与原因，队列不被阻塞。
+  原因写进备注，结尾列出这 2 条的标题与原因，队列不被阻塞。
 
 ## 4. 审计流程（`--audit`，严格只读）
 
@@ -309,7 +318,12 @@ node .zentao-triage/bin/find-fixed-unresolved.mjs \
 ```
 
 - 若 `.zentao-triage/bin/find-fixed-unresolved.mjs` 不存在，尝试 `scripts/find-fixed-unresolved.mjs`（开发目录）。
-- helper 输出 JSON：`matches[].commits[]` 含 `hash`、`subject`、`commitDateLocal`、`refs`、`reachableFromHead`、`changedFiles`、`isMerge`、`isEmpty`、`isRevert`。
+- helper 输出 JSON：`repo`、`head`、`branch`、`shallow`、`detached`、`scannedCommits`、`matches[]`；`matches[].commits[]` 含 `hash`、`subject`、`commitDateLocal`、`refs`、`reachableFromHead`、`changedFiles`、`isMerge`、`isEmpty`、`isRevert`。
+- **匹配口径**：helper 只看 commit **subject**，不扫 body；一个 subject 里出现多个 id 时只归第一个。
+  所以「没命中」≠「没有修复提交」——报告里要写「按 subject 口径未命中」，不能直接写成「未修复」。
+  回退命令的 `--grep` 匹配整条提交消息（含 body），口径比 helper 宽；两者结果不同时以更宽的结果为准并说明差异。
+- `shallow=true` 表示浅克隆，历史可能不完整 → 报告必须标注「浅克隆，结果可能不完整」；
+  `detached=true`（`branch` 为 `HEAD`）表示 HEAD 不在分支上 → 报告里注明「游离 HEAD」。
 - helper 成功读取后删除临时文件；失败时保留并提示路径。
 - helper 报「前缀非法 / 不是 git 仓库」→ 停止并修复配置/路径，不要回退。
 - helper 因其他运行时错误失败，或 helper 不存在 → 回退逐条扫描，并在报告中标注「未使用 helper」。
@@ -402,6 +416,7 @@ git show -s --format=%cI <hash>
 
 - 只允许调用：`zentao_health_check`、`zentao_list_bugs`、`zentao_list_my_bugs`、`zentao_get_bug`。
 - 禁止调用任何写工具：`zentao_resolve_bug`、`zentao_close_bug`、`zentao_activate_bug`、`zentao_assign_*`、`zentao_create_*` 等。
+- 禁止运行 `zentao-remark.mjs`（它走 assign 接口写备注）或任何其他写操作。
 - Git 只允许只读命令：`log`、`show`、`rev-parse`、`merge-base`、`for-each-ref`、`diff-tree`、`rev-list`。
 - 不 checkout、不 fetch、不 pull、不 commit、不运行 test/build。
 - 不读取 `.mcp.json` 或任何凭据文件。
@@ -428,6 +443,8 @@ git show -s --format=%cI <hash>
 - 只有 `fixed` 且通过验证闸门（或人工确认）才允许 resolve(fixed)；不谎称修复、不空 commit。
 - **AI 不判定非 fixed**：不主动提出 bydesign / tostory / duplicate / notrepro 等结论，
   也不改这些 bug 的状态；它们进「未处理清单」，结尾汇报，不阻塞主队列。
+- 判不出预期的 bug：不改 status；原因用 `zentao-remark.mjs` 写成备注（assign 夹带、指派给当前账号、`mailto` 留空），
+  备注里不写「AI 自动修复」这类署名式字样；写入失败只记录，并在结尾标注「禅道备注未写入」。
 - 只有用户明确指定 resolution 时才代为执行；不为了清队列硬改代码或硬推状态。
 - 不绕过 git hooks，不自动 push。
 - 不绕过 MCP 直连禅道或读取 `.mcp.json` 凭据；工具不可用时先修好 MCP。

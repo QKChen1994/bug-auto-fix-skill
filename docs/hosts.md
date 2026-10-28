@@ -16,19 +16,24 @@
 | Gemini CLI | `.gemini/skills/` | `~/.gemini/skills/` | 支持 `.agents/skills` |
 | Cursor / Windsurf | `.cursor/skills/` 等 | — | 支持 `.agents/skills` |
 | DeepSeek Harness (dsh) | `.dsh/skills/` | `~/.dsh/skills/` | 支持 `.agents/skills`（见下方核实说明） |
+| OpenCode / OpenClaw | `.agents/skills/`（未实测） | — | 假定原生、不建链接；不生效时 `--hosts opencode --copy` |
 | Claude Code | `.claude/skills/` | `~/.claude/skills/` | 不读 `.agents/skills` → **建软链接**（实测会跟随） |
-| Qoder | `.qoder/skills/` | `~/.qoder-cn/skills/` | **建软链接** |
-| Trae / CodeBuddy / ZCode | `.trae/skills/`、`.codebuddy/skills/` 等 | `~/.codebuddy/skills/` 等 | **建软链接** |
+| Qoder | `.qoder/skills/` | `~/.qoder-cn/skills/`（`--hosts qoder-cn`） | **建软链接** |
+| Trae / CodeBuddy / ZCode | `.trae/skills/`、`.codebuddy/skills/`、`.zcode/skills/` | `~/.codebuddy/skills/` 等 | **建软链接** |
 
 - 探测到多个宿主目录时，`install.sh` 会给**所有**需要链接的宿主建链接，不再只装第一个命中的。
 - 目标位置已存在真实目录：内容一致就替换成链接；不一致先备份为 `<name>.bak-<时间戳>` 再替换，不静默覆盖手改内容。
+- 权威源里的 `SKILL.md` 被手改过：同样先备份成 `SKILL.md.bak-<时间戳>` 再更新，不静默覆盖。
+- 安装结束会打印 `installer v…` 与三个 skill 的实际版本，便于判断是否装到了旧版。
+- `--hosts` 全部无效、或「目标目录 + `--user`」同时给出时直接报错退出，不会打印成功。
 - 一个宿主目录都没探测到时，默认按 Claude Code 布局创建 `.claude/skills`（保持旧行为）。
 - Windows 建软链接需要开发者模式；失败时脚本自动回退为复制并打印警告，也可以显式 `--copy`。
 - 想只装部分宿主：`--hosts claude,qoder`；想跨项目共享：`install.sh --user`。
 
 > 目录来源说明：Claude Code 不识别 `.agents/skills`（社区实测放进去不列出，改成
-> `.claude/skills → ../.agents/skills` 软链接后会跟随）；Codex / Copilot / Gemini / Cursor / dsh
-> 支持 `.agents/skills` 取自官方文档与第三方横评。**dsh 的 skills 目录尚未在本机验证**
+> `.claude/skills/<name> → ../../.agents/skills/<name>` 这类**逐 skill** 软链接后会跟随）；
+> Codex / Copilot / Gemini / Cursor / dsh 支持 `.agents/skills` 取自官方文档与第三方横评，
+> OpenCode / OpenClaw 仅有第三方资料、未实测。**dsh 的 skills 目录尚未在本机验证**
 > （`~/.dsh` 存在但还没有 `skills/`）：装完请在 dsh 里确认能否列出 `/bugfix-*`，
 > 不能就用 `--hosts dsh` 强制建一条链接。
 
@@ -62,6 +67,10 @@
 - 不想把密码写进 Qoder 配置时，可让 `command` 指向一个本机 wrapper（`chmod 700`，不要提交），
   wrapper 从本地凭据文件读取 `ZENTAO_*` 后 `exec node .../zentao-mcp/dist/index.js`。
 - 新建或重启会话后调用 `zentao_health_check`，确认 `zentao_*` 工具可见且 `authenticated=true`。
+- Qoder 的 MCP 配置存在应用内部，不是可直接读取的 `mcp.json`（实测 `~/.qoder-cn/mcp.json` 的
+  `mcpServers` 为空）。因此 `zentao-users.mjs` 在 Qoder 上可能读到**别的客户端**的配置：
+  它现在会输出 `baseUrl`，请与 `zentao_health_check` 的 `baseUrl` 比对；不一致时按技能提示让用户
+  用 `--config <同实例的 mcp.json>` 指定，或只按 MCP 账号处理并告知用户名单不可用。
 
 ## Codex CLI 适配
 Codex 的项目级技能目录就是 `.agents/skills/`，也就是本项目的权威源位置，因此

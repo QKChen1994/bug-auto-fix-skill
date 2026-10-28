@@ -1,6 +1,6 @@
 ---
 name: bugfix-config
-version: 1.3.4
+version: 1.4.0
 description: 精细配置、查看或重置禅道筛选与校验条件——从禅道拉取 scope 列表供选择，配置 assigned_to（默认当前账号）、test_cmd/build_cmd/commit_prefix/limit，写入 .zentao-triage/user-config.md（按 YAML 解析，不提交）；支持 --show 与 --reset。
 ---
 
@@ -96,14 +96,17 @@ limit: 50
      `assignedTo` 确定 MCP 实际登录的账号。配置文件里的 `ZENTAO_ACCOUNT` 是另一个来源，可能指向
      另一个禅道实例，不能直接当成本次执行身份。
    - 若 `.zentao-triage/bin/zentao-users.mjs` 存在，运行 `node .zentao-triage/bin/zentao-users.mjs`
-     取 `currentUser`（姓名）和 `configPath`（它实际读了哪个配置文件），然后：
-     - 与 MCP 账号**一致** → 展示 `仅当前账号 <account>（<realname>）（推荐）`；
+     取 `currentUser`（姓名）、`configPath`（实际读了哪个配置文件）与 `baseUrl`（该文件指向的实例），然后：
+     - **先比 `baseUrl`**：与 `zentao_health_check` 的 `baseUrl` 不同 → 读到了另一个禅道实例，
+       **它的用户名单不可用**（不能用来选人、更不能写入 `assigned_to`）；同时显示两个地址与 `configPath`，
+       让用户用 `--config <与当前 MCP 同实例的 mcp.json>` 指定后重跑；没有可用配置文件时只按 MCP 账号处理，
+       并明确告知「用户名单不可用」；
+     - `baseUrl` 相同再比账号：与 MCP 账号**一致** → 展示 `仅当前账号 <account>（<realname>）（推荐）`；
      - **不一致** → 同时显示两者（MCP 实际账号 / 脚本读到的 `currentAccount` + `configPath`）并询问用哪个，
-       **绝不静默写入脚本读到的账号**；通常是脚本穿透到了别的客户端配置，可用
-       `--config <正确的 mcp.json>` 指定后重跑；
+       **绝不静默写入脚本读到的账号**；
      - `list_my_bugs` 为空、推断不出身份 → 可以用脚本的 `currentAccount`，但必须把 `configPath`
        一起显示出来让用户确认。
-     不要显示密码或 token。
+     不要显示密码或 token。`--config` 指向的文件不可用会直接报错、不会回退到别的配置。
    - 同时提供「选择其他账号」和「全部指派人（不推荐，需明确确认）」。
    - **默认调用只返回当前账号和 `totalUsers`，不含用户列表**。要选其他人时：
      先问关键词，再运行 `node .zentao-triage/bin/zentao-users.mjs --keyword <账号或姓名子串>`；

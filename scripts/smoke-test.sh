@@ -49,6 +49,7 @@ grep -qxF '.mcp.json' "$proj1/.gitignore" || fail "场景1 .gitignore 未忽略 
 [ -f "$proj1/.zentao-triage/bin/detect-commands.sh" ] || fail "场景1 缺少命令探测脚本"
 [ -f "$proj1/.zentao-triage/bin/zentao-users.mjs" ] || fail "场景1 缺少用户列表脚本"
 [ -f "$proj1/.zentao-triage/bin/find-fixed-unresolved.mjs" ] || fail "场景1 缺少审计 helper"
+[ -f "$proj1/.zentao-triage/bin/zentao-remark.mjs" ] || fail "场景1 缺少备注 helper"
 
 # 场景 2：.cursor 原生读 .agents/skills，不应再产生副本目录
 proj2="$TMP/project2"
@@ -127,6 +128,7 @@ mkdir -p "$tar_src/skills" "$tar_src/scripts"
 cp -R "$ROOT/skills/." "$tar_src/skills/"
 cp "$ROOT/scripts/detect-commands.sh" "$tar_src/scripts/"
 cp "$ROOT/scripts/zentao-users.mjs" "$tar_src/scripts/"
+cp "$ROOT/scripts/zentao-remark.mjs" "$tar_src/scripts/"
 cp "$ROOT/scripts/find-fixed-unresolved.mjs" "$tar_src/scripts/"
 tar -czf "$TMP/repo.tgz" -C "$TMP/tar-src" bug-auto-fix-skill-main
 TARBALL_URL="$(file_url "$TMP/repo.tgz")"
@@ -139,13 +141,17 @@ cp "$ROOT/scripts/install.sh" "$remote/install.sh"
 # 场景 10：指定 tarball 下载（GitHub archive 风格，含顶层目录）
 proj10="$TMP/project10"
 mkdir -p "$proj10/.claude"
-BUG_AUTO_FIX_TARBALL="$TARBALL_URL" bash "$remote/install.sh" "$proj10" >/dev/null
+BUG_AUTO_FIX_TARBALL="$TARBALL_URL" \
+  BUG_AUTO_FIX_SKILLS_BASE="$SKILLS_URL" \
+  BUG_AUTO_FIX_SCRIPTS_BASE="$SCRIPTS_URL" \
+  bash "$remote/install.sh" "$proj10" >/dev/null
 [ -f "$proj10/.claude/skills/bugfix-run/SKILL.md" ] || fail "场景10 tarball 下载安装失败"
 [ -f "$proj10/.agents/skills/bugfix-run/SKILL.md" ] || fail "场景10 tarball 安装缺权威源"
 grep -qxF '.mcp.json' "$proj10/.gitignore" || fail "场景10 tarball 安装未写 .gitignore"
 [ -f "$proj10/.zentao-triage/bin/find-fixed-unresolved.mjs" ] || fail "场景10 tarball 安装缺少审计 helper"
+[ -f "$proj10/.zentao-triage/bin/zentao-remark.mjs" ] || fail "场景10 tarball 安装缺少备注 helper"
 
-# 场景 11：逐文件拉取（默认 jsDelivr 分支的本地等价物）
+# 场景 11：逐文件拉取（默认「GitHub raw 优先、jsDelivr 兜底」的本地等价物）
 proj11="$TMP/project11"
 mkdir -p "$proj11/.claude"
 BUG_AUTO_FIX_SKILLS_BASE="$SKILLS_URL" \
@@ -154,15 +160,27 @@ BUG_AUTO_FIX_SKILLS_BASE="$SKILLS_URL" \
 [ -f "$proj11/.claude/skills/bugfix-init/SKILL.md" ] || fail "场景11 逐文件下载安装失败"
 [ -f "$proj11/.zentao-triage/bin/find-fixed-unresolved.mjs" ] || fail "场景11 逐文件安装缺少审计 helper"
 
+# 场景 11b：主源不可用时自动落到第二个源（raw 失败 -> jsDelivr/tarball 兜底）
+proj11b="$TMP/project11b"
+mkdir -p "$proj11b/.claude"
+BUG_AUTO_FIX_SKILLS_BASE="$(file_url "$TMP/no-such-dir") $SKILLS_URL" \
+  BUG_AUTO_FIX_SCRIPTS_BASE="$(file_url "$TMP/no-such-dir") $SCRIPTS_URL" \
+  bash "$remote/install.sh" "$proj11b" >/dev/null
+[ -f "$proj11b/.claude/skills/bugfix-run/SKILL.md" ] || fail "场景11b 主源失败时未回退到备用源"
+
 # 场景 12：bash -c（模拟 curl | bash），$0 不是脚本文件
 proj12="$TMP/project12"
 mkdir -p "$proj12/.claude"
 (
   cd "$TMP"
-  BUG_AUTO_FIX_TARBALL="$TARBALL_URL" bash -c "$(cat "$remote/install.sh")" _ "$proj12" >/dev/null
+  BUG_AUTO_FIX_TARBALL="$TARBALL_URL" \
+    BUG_AUTO_FIX_SKILLS_BASE="$SKILLS_URL" \
+    BUG_AUTO_FIX_SCRIPTS_BASE="$SCRIPTS_URL" \
+    bash -c "$(cat "$remote/install.sh")" _ "$proj12" >/dev/null
 )
 [ -f "$proj12/.claude/skills/bugfix-config/SKILL.md" ] || fail "场景12 bash -c 远程安装失败"
 [ -f "$proj12/.zentao-triage/bin/find-fixed-unresolved.mjs" ] || fail "场景12 bash -c 安装缺少审计 helper"
+[ -f "$proj12/.zentao-triage/bin/zentao-remark.mjs" ] || fail "场景12 bash -c 安装缺少备注 helper"
 
 # 场景 13：--help 只打印用法，未知参数报错退出
 help_out=$(bash "$ROOT/scripts/install.sh" --help)
@@ -172,5 +190,35 @@ printf '%s' "$help_out" | grep -q 'set -euo' && fail "场景13 --help 泄漏了�
 if bash "$ROOT/scripts/install.sh" --bogus >/dev/null 2>&1; then
   fail "场景13 未知参数应该失败退出"
 fi
+
+# 场景 14：权威源被手改后重装，先备份再覆盖，不静默丢失
+proj14="$TMP/project14"
+mkdir -p "$proj14/.claude"
+bash "$ROOT/scripts/install.sh" "$proj14" >/dev/null
+printf 'MY CANONICAL EDIT\n' >> "$proj14/.agents/skills/bugfix-run/SKILL.md"
+bash "$ROOT/scripts/install.sh" "$proj14" >/dev/null
+bak14=$(find "$proj14/.agents/skills/bugfix-run" -maxdepth 1 -name 'SKILL.md.bak-*' | head -1)
+[ -n "$bak14" ] || fail "场景14 权威源手改没有被备份"
+grep -q 'MY CANONICAL EDIT' "$bak14" || fail "场景14 权威源备份内容不对"
+if grep -q 'MY CANONICAL EDIT' "$proj14/.agents/skills/bugfix-run/SKILL.md"; then
+  fail "场景14 权威源没有更新为新版本"
+fi
+
+# 场景 15：--hosts 全部未知时失败退出，不再打印成功
+proj15="$TMP/project15"
+mkdir -p "$proj15/.claude"
+if bash "$ROOT/scripts/install.sh" "$proj15" --hosts nosuchhost >/dev/null 2>&1; then
+  fail "场景15 --hosts 全未知时应失败退出"
+fi
+
+# 场景 16：目标目录与 --user 互斥
+if HOME="$TMP/fakehome16" bash "$ROOT/scripts/install.sh" "$proj15" --user >/dev/null 2>&1; then
+  fail "场景16 目标目录与 --user 同时给出时应失败退出"
+fi
+
+# 场景 17：成功输出带安装器与各 skill 版本，便于识别 CDN 缓存旧脚本
+out17=$(bash "$ROOT/scripts/install.sh" "$proj15" 2>&1)
+printf '%s' "$out17" | grep -q 'installer v' || fail "场景17 输出缺少 installer 版本"
+printf '%s' "$out17" | grep -Eq 'bugfix-run [0-9]' || fail "场景17 输出缺少 skill 版本"
 
 echo "install.sh smoke test passed"

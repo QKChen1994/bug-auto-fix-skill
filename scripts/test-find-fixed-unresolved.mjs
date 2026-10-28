@@ -95,6 +95,7 @@ test('default prefix on current branch', () => {
   assert.equal(result.json.repo, canonical(repo));
   assert.ok(result.json.head);
   assert.equal(result.json.branch, 'main');
+  assert.equal(result.json.detached, false);
   assert.equal(result.json.shallow, false);
   assert.ok(result.json.scannedCommits >= 2);
 
@@ -234,4 +235,52 @@ test('invalid bug ids are skipped', () => {
   assert.equal(result.json.matches.length, 1);
   assert.equal(result.json.matches[0].bugId, 108);
   assert.ok(result.json.warnings.length >= 1);
+});
+
+test('changedFiles keeps non-ASCII and spaced paths unescaped', () => {
+  const repo = makeRepo();
+  const name = 'src/模块/登录 校验.js';
+  fs.mkdirSync(path.join(repo, 'src/模块'), { recursive: true });
+  commit(repo, 'fix(zentao-#109): 中文路径', name);
+  const result = runCli(repo, 'fix(zentao-#{id}): ', [{ id: 109 }]);
+
+  assert.equal(result.status, 0);
+  assert.deepEqual(result.json.matches[0].commits[0].changedFiles, [name]);
+});
+
+test('changedFiles handles file names containing newlines', { skip: process.platform === 'win32' }, () => {
+  const repo = makeRepo();
+  const name = 'odd\nname.txt';
+  commit(repo, 'fix(zentao-#111): odd name', name);
+  const result = runCli(repo, 'fix(zentao-#{id}): ', [{ id: 111 }]);
+
+  assert.equal(result.status, 0);
+  assert.deepEqual(result.json.matches[0].commits[0].changedFiles, [name]);
+});
+
+test('empty repository reports no commits instead of a raw git error', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bugfix-audit-empty-'));
+  tmpDirs.push(dir);
+  git(dir, ['init']);
+  const bugsFile = path.join(dir, 'bugs.json');
+  fs.writeFileSync(bugsFile, JSON.stringify([{ id: 1 }]));
+  const r = spawnSync(
+    process.execPath,
+    [SCRIPT, '--repo', dir, '--prefix', 'fix(zentao-#{id}): ', '--bugs', bugsFile],
+    { encoding: 'utf8' },
+  );
+
+  assert.equal(r.status, 1);
+  assert.match(JSON.parse(r.stdout).error, /no commits/i);
+});
+
+test('detached HEAD is flagged', () => {
+  const repo = makeRepo();
+  const sha = commit(repo, 'fix(zentao-#110): detached');
+  git(repo, ['checkout', '--detach', sha]);
+  const result = runCli(repo, 'fix(zentao-#{id}): ', [{ id: 110 }]);
+
+  assert.equal(result.status, 0);
+  assert.equal(result.json.detached, true);
+  assert.equal(result.json.branch, 'HEAD');
 });

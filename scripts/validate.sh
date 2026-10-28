@@ -134,6 +134,7 @@ done
 
 # macOS CI runner 自带 bash 3.2：变量引用后若紧跟全角标点（例如 $VAR 紧跟中文括号），
 # 标点字节会被吞进变量名导致 unbound variable。这类引用必须写成 ${VAR}。
+# 该检查按字节匹配，转义写法（反斜杠 + $ + 名字 + 全角标点）也会被报出来，改写措辞即可。
 if LC_ALL=C grep -q -E '\$[A-Za-z_][A-Za-z0-9_]*[^ -~]|\$[0-9]+[^ -~]' "$ROOT"/scripts/*.sh 2>/dev/null; then
   echo "FAIL: shell 脚本中变量引用后紧跟非 ASCII 字符，请改写为花括号形式（bash 3.2 会吞进变量名）"
   LC_ALL=C grep -n -E '\$[A-Za-z_][A-Za-z0-9_]*[^ -~]|\$[0-9]+[^ -~]' "$ROOT"/scripts/*.sh || true
@@ -153,6 +154,59 @@ if [ -n "$bad_directives" ]; then
   echo "FAIL: 存在不可解析的检查器指令行，应写成 disable=SCxxxx 形式或改写措辞"
   printf '%s\n' "$bad_directives"
   fail=1
+fi
+
+# ---- 跨实例防护：helper 必须暴露 baseUrl，技能必须要求与 health_check 比对
+for f in "$ROOT/skills/bugfix-config/SKILL.md" "$ROOT/skills/bugfix-run/SKILL.md" "$ROOT/examples/AGENTS.md"; do
+  for phrase in 'baseUrl' 'configPath'; do
+    if ! grep -q "$phrase" "$f"; then
+      echo "FAIL: $f 未提及 ${phrase}（跨实例防护）"; fail=1
+    fi
+  done
+done
+if ! grep -q "baseUrl" "$ROOT/scripts/zentao-users.mjs"; then
+  echo "FAIL: zentao-users.mjs 未输出 baseUrl"; fail=1
+fi
+
+# ---- 审计匹配口径与浅克隆/游离 HEAD 必须写清，避免把「没搜到」当「未修复」
+for phrase in '按 subject 口径未命中' '浅克隆' '游离 HEAD'; do
+  if ! grep -q "$phrase" "$ROOT/skills/bugfix-run/SKILL.md"; then
+    echo "FAIL: skills/bugfix-run/SKILL.md 未写明「${phrase}」"; fail=1
+  fi
+done
+if ! grep -q -- "'-z'" "$ROOT/scripts/find-fixed-unresolved.mjs"; then
+  echo "FAIL: find-fixed-unresolved.mjs 的 changedFiles 未使用 -z（中文文件名会被转义）"; fail=1
+fi
+
+# ---- 安装器：raw 优先、版本输出、权威源备份、参数冲突报错
+for phrase in 'INSTALLER_VERSION' 'raw.githubusercontent.com' 'cdn.jsdelivr.net' \
+              '权威源' '不能同时使用' '没有匹配到任何已知宿主'; do
+  if ! grep -q "$phrase" "$ROOT/scripts/install.sh"; then
+    echo "FAIL: scripts/install.sh 缺少「${phrase}」"; fail=1
+  fi
+done
+for phrase in 'installer v' 'jsDelivr'; do
+  if ! grep -q "$phrase" "$ROOT/README.md"; then
+    echo "FAIL: README.md 未写清 ${phrase}（下载源与陈旧缓存说明）"; fail=1
+  fi
+done
+
+# ---- 文档不得再出现整目录软链接写法
+if grep -q '\.claude/skills → \.\./\.agents/skills' "$ROOT/docs/hosts.md"; then
+  echo "FAIL: docs/hosts.md 仍写着整目录软链接（实现是逐 skill 的 ../../.agents/skills/<name>）"; fail=1
+fi
+
+# ---- 判不出预期的 bug：原因回写备注（assign 夹带），且备注不带署名式字样
+if ! grep -q "install_helper zentao-remark.mjs" "$ROOT/scripts/install.sh"; then
+  echo "FAIL: install.sh 未安装 zentao-remark.mjs"; fail=1
+fi
+for phrase in 'zentao-remark.mjs' '不改 status' '备注未写入'; do
+  if ! grep -q "$phrase" "$ROOT/skills/bugfix-run/SKILL.md"; then
+    echo "FAIL: skills/bugfix-run/SKILL.md 未写明「${phrase}」（备注回写）"; fail=1
+  fi
+done
+if grep -rn 'comment="AI 自动修复\|AI 自动修复，' "$ROOT/skills" >/dev/null 2>&1; then
+  echo "FAIL: skills/ 的备注模板里仍有「AI 自动修复」字样，备注不应带署名式措辞"; fail=1
 fi
 
 if [ "$fail" -ne 0 ]; then
