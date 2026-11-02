@@ -45,6 +45,9 @@ bash scripts/install.sh /path/to/your/project
 
 ## 安装
 
+运行环境需要 **bash + git + curl**（Windows 请用 Git Bash 或 WSL，见下文「Windows：需要 bash」），
+三个 helper 脚本另需 Node.js。
+
 本 skill 是一组 Markdown 运行手册。安装采用**唯一权威源 + 软链接**：三个 `SKILL.md` 只存一份，
 放在项目的 `.agents/skills/`（跨工具约定，Codex / Copilot / Gemini / Cursor / DeepSeek Harness 原生读取）；
 不原生读该目录的宿主（Claude Code / Qoder / Trae / CodeBuddy / ZCode）按「每个 skill 一条相对软链接」
@@ -129,6 +132,43 @@ bash scripts/install.sh /path/to/project --copy
 # 只给指定宿主建链接
 bash scripts/install.sh /path/to/project --hosts claude,qoder
 ```
+
+### Windows：需要 bash（Git Bash 或 WSL）
+
+下载这一步是通用的——Windows 10 1803+ 自带 `curl.exe`。**但纯 PowerShell / CMD 不支持安装**，原因有三条：
+
+1. `install.sh` 依赖 bash 语义：`set -euo pipefail`（任一步失败即退出）、函数与局部变量、
+   `[ -L ]` 判断符号链接、`diff -rq` / `cmp` 比对内容、`tail -c 1` 处理 `.gitignore` 末尾换行。
+   batch 里没有对应写法（`mklink` 还是 cmd 内置命令，PowerShell 不能直接调用），
+   改写等于维护第二份实现，必然与 `install.sh` 漂移；
+2. Windows 建符号链接需要开发者模式或管理员权限；`install.sh` 的做法是**建链接失败就自动回退为复制并打印警告**
+   （也可以直接加 `--copy`）；
+3. **运行期同样需要 bash**：`/bugfix-config` 会执行 `.zentao-triage/bin/detect-commands.sh` 探测 test/build 命令，
+   它也是 bash 脚本。只把安装器换成 bat 并不能让 Windows 在无 bash 环境下完整工作。
+
+```bash
+# A) Git Bash（推荐：装 Git for Windows 就自带 bash 与 curl）
+curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.sh -o install.sh
+bash install.sh /c/path/to/project
+bash install.sh /c/path/to/project --copy    # 不想开开发者模式，直接用复制安装
+
+# B) WSL（Ubuntu 等）里就是标准 Linux 用法
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.sh)"
+```
+
+Git Bash 里 Windows 路径写成 `/c/...` 或 `~/...`；WSL 里项目若放在 `/mnt/c/...`（Windows 盘），
+跨文件系统建软链接可能失败，请加 `--copy`。
+
+装完自查版本（应与 Releases 页面上标注的三个 skill 版本一致）：
+
+```bash
+grep -m1 '^version:' /c/path/to/project/.agents/skills/bugfix-run/SKILL.md
+```
+
+> 已验证范围：CI 在 `windows-latest` 用 Git 的 bash 跑的是**同一份** `install.sh`（含 18 个安装冒烟场景）；
+> 真实 https 下载在 Windows 上未实测（CI 的远程场景用本地 `file://` 源）。
+> 若确实需要「无 bash 的原生 Windows 安装」，正解是把安装器改写成跨平台的 `install.mjs`（Node 已是依赖），
+> 而不是新增一份 batch/PowerShell 脚本。
 
 > `.agents/skills/` 建议随业务项目提交，团队成员就能共享同一份 skill；
 > 本仓库把它加进了 `.gitignore`，因为这里就是 skill 的源，自装只会产生本地副本。

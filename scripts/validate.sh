@@ -209,6 +209,16 @@ if grep -rn 'comment="AI 自动修复\|AI 自动修复，' "$ROOT/skills" >/dev/
   echo "FAIL: skills/ 的备注模板里仍有「AI 自动修复」字样，备注不应带署名式措辞"; fail=1
 fi
 
+# Windows 支持边界必须写清：安装器依赖 bash，纯 PowerShell 不支持
+for phrase in 'Windows：需要 bash' 'Git Bash' 'WSL' '纯 PowerShell'; do
+  if ! grep -q "$phrase" "$ROOT/README.md"; then
+    echo "FAIL: README.md 缺少「${phrase}」（Windows 支持边界）"; fail=1
+  fi
+done
+if ! grep -q '纯 PowerShell' "$ROOT/docs/hosts.md"; then
+  echo "FAIL: docs/hosts.md 未写明纯 PowerShell 不支持"; fail=1
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "校验未通过"; exit 1
 fi

@@ -28,6 +28,8 @@
 - `--hosts` 全部无效、或「目标目录 + `--user`」同时给出时直接报错退出，不会打印成功。
 - 一个宿主目录都没探测到时，默认按 Claude Code 布局创建 `.claude/skills`（保持旧行为）。
 - Windows 建软链接需要开发者模式；失败时脚本自动回退为复制并打印警告，也可以显式 `--copy`。
+- 安装器与运行期的 `detect-commands.sh` 都是 bash 脚本：**纯 PowerShell / CMD 不支持**，
+  请用 Git Bash 或 WSL（命令见 README「Windows：需要 bash」一节）。
 - 想只装部分宿主：`--hosts claude,qoder`；想跨项目共享：`install.sh --user`。
 
 > 目录来源说明：Claude Code 不识别 `.agents/skills`（社区实测放进去不列出，改成
