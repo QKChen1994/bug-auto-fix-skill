@@ -1,6 +1,6 @@
 ---
 name: bugfix-init
-version: 1.2.1
+version: 1.2.2
 description: 初始化或重置禅道 MCP 连接——检测 zentao MCP，未安装则引导官方安装，配置 ZENTAO_URL / 账号 / 密码与 ZENTAO_ALLOW_RESOLVE_BUG；支持 --reset 仅重写 zentao 条目。
 ---
 
@@ -54,7 +54,7 @@ description: 初始化或重置禅道 MCP 连接——检测 zentao MCP，未安
 
 3. **确保凭据不进版本库**：
    - 项目根 `.mcp.json` 必须被 `.gitignore` 忽略；没有 `.gitignore` 就创建，并追加 `.mcp.json`。
-   - `install.sh` 会自动处理；手动安装时也要自行确认。
+   - `install.mjs` 会自动处理；手动安装时也要自行确认。
    - 绝不把真实密钥写进 skill 文件、README、提交信息或任何会被提交的文件。
 
 4. **凭据**：agent 不能代填密钥。请在 `.mcp.json`（或安装器交互）里填入真实

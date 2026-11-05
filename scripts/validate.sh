@@ -178,13 +178,37 @@ if ! grep -q -- "'-z'" "$ROOT/scripts/find-fixed-unresolved.mjs"; then
   echo "FAIL: find-fixed-unresolved.mjs 的 changedFiles 未使用 -z（中文文件名会被转义）"; fail=1
 fi
 
-# ---- 安装器：raw 优先、版本输出、权威源备份、参数冲突报错
-for phrase in 'INSTALLER_VERSION' 'raw.githubusercontent.com' 'cdn.jsdelivr.net' \
-              '权威源' '不能同时使用' '没有匹配到任何已知宿主'; do
-  if ! grep -q "$phrase" "$ROOT/scripts/install.sh"; then
-    echo "FAIL: scripts/install.sh 缺少「${phrase}」"; fail=1
+# ---- 安装器：唯一实现在 install.mjs（raw 优先、版本输出、软链接与备份、参数冲突报错）
+for phrase in 'INSTALLER_VERSION' 'raw.githubusercontent.com' 'cdn.jsdelivr.net' 'symlinkSync' \
+              '.bak-' '不能同时使用' '没有匹配到任何已知宿主'; do
+  if ! grep -q "$phrase" "$ROOT/scripts/install.mjs"; then
+    echo "FAIL: scripts/install.mjs 缺少「${phrase}」"; fail=1
   fi
 done
+if ! grep -q "zentao-remark.mjs" "$ROOT/scripts/install.mjs"; then
+  echo "FAIL: install.mjs 未安装 zentao-remark.mjs"; fail=1
+fi
+
+# install.sh 只允许是兼容壳：必须 exec node install.mjs，且不得自带安装逻辑（避免两份实现漂移）
+if ! grep -q 'exec node' "$ROOT/scripts/install.sh" || ! grep -q 'install\.mjs' "$ROOT/scripts/install.sh"; then
+  echo "FAIL: scripts/install.sh 不再是兼容壳（应找到并 exec node install.mjs）"; fail=1
+fi
+for leaked in 'LINK_HOSTS' 'symlink' 'SKILL.md' 'detect-commands'; do
+  if grep -q "$leaked" "$ROOT/scripts/install.sh"; then
+    echo "FAIL: scripts/install.sh 里出现安装逻辑「${leaked}」，会与 install.mjs 漂移"; fail=1
+  fi
+done
+
+# bash 版实现必须已退役，防止留下第二份
+for gone in detect-commands.sh test-detect-commands.sh smoke-test.sh; do
+  if [ -e "$ROOT/scripts/$gone" ]; then
+    echo "FAIL: scripts/$gone 应已删除（逻辑已统一到 node 实现）"; fail=1
+  fi
+done
+if ! grep -q 'detect-commands\.mjs' "$ROOT/skills/bugfix-config/SKILL.md"; then
+  echo "FAIL: bugfix-config 未改为优先使用 detect-commands.mjs"; fail=1
+fi
+
 for phrase in 'installer v' 'jsDelivr'; do
   if ! grep -q "$phrase" "$ROOT/README.md"; then
     echo "FAIL: README.md 未写清 ${phrase}（下载源与陈旧缓存说明）"; fail=1
@@ -197,9 +221,6 @@ if grep -q '\.claude/skills → \.\./\.agents/skills' "$ROOT/docs/hosts.md"; the
 fi
 
 # ---- 判不出预期的 bug：原因回写备注（assign 夹带），且备注不带署名式字样
-if ! grep -q "install_helper zentao-remark.mjs" "$ROOT/scripts/install.sh"; then
-  echo "FAIL: install.sh 未安装 zentao-remark.mjs"; fail=1
-fi
 for phrase in 'zentao-remark.mjs' '不改 status' '备注未写入'; do
   if ! grep -q "$phrase" "$ROOT/skills/bugfix-run/SKILL.md"; then
     echo "FAIL: skills/bugfix-run/SKILL.md 未写明「${phrase}」（备注回写）"; fail=1
@@ -209,14 +230,17 @@ if grep -rn 'comment="AI 自动修复\|AI 自动修复，' "$ROOT/skills" >/dev/
   echo "FAIL: skills/ 的备注模板里仍有「AI 自动修复」字样，备注不应带署名式措辞"; fail=1
 fi
 
-# Windows 支持边界必须写清：安装器依赖 bash，纯 PowerShell 不支持
-for phrase in 'Windows：需要 bash' 'Git Bash' 'WSL' '纯 PowerShell'; do
+# Windows 支持边界必须写清：安装器是 node 实现，PowerShell 直接可用，不再要求 bash
+for phrase in 'Windows：只需要 Node.js' 'PowerShell' 'install.mjs'; do
   if ! grep -q "$phrase" "$ROOT/README.md"; then
     echo "FAIL: README.md 缺少「${phrase}」（Windows 支持边界）"; fail=1
   fi
 done
-if ! grep -q '纯 PowerShell' "$ROOT/docs/hosts.md"; then
-  echo "FAIL: docs/hosts.md 未写明纯 PowerShell 不支持"; fail=1
+if ! grep -q '不需要 bash' "$ROOT/docs/hosts.md"; then
+  echo "FAIL: docs/hosts.md 未写明 Windows 不再需要 bash"; fail=1
+fi
+if grep -rq '纯 PowerShell / CMD 不支持' "$ROOT/README.md" "$ROOT/docs/hosts.md" "$ROOT/examples"; then
+  echo "FAIL: 文档仍声称纯 PowerShell 不支持（安装器已是 node 实现）"; fail=1
 fi
 
 if [ "$fail" -ne 0 ]; then

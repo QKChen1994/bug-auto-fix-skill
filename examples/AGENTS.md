@@ -39,7 +39,8 @@
   **先比 `baseUrl` 与 `zentao_health_check` 的地址**：不同说明读到了别的实例，用户名单不可用，让用户用
   `--config <同实例的 mcp.json>` 指定后重跑；同实例再比账号，不一致时摆出来让用户确认，不静默写入。
   换人用 `--keyword <账号或姓名子串>` 过滤，确认要看全部才用 `--list`；只有明确选择「全部指派人」时才留空。
-- `test_cmd`/`build_cmd` 优先运行 `.zentao-triage/bin/detect-commands.sh` 获取建议；
+- `test_cmd`/`build_cmd` 优先运行 `node .zentao-triage/bin/detect-commands.mjs` 获取建议（只有它缺失而旧
+  `detect-commands.sh` 存在时才用 bash 版）；
   没有脚本时扫描 package.json / Makefile / go.mod / pom.xml / build.gradle / composer.json /
   Gemfile / pyproject.toml / Cargo.toml / monorepo 配置。用户确认（可自定义或留空）。
 - 采集并写入：`scope`、`scope_id`(正整数)、`assigned_to`(可选)、

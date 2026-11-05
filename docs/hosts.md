@@ -5,7 +5,7 @@
 
 ## 安装模型：一份权威源 + 软链接
 
-`install.sh` 只把 skill 存一份在 `.agents/skills/`（项目级）或 `~/.agents/skills/`（`--user` 用户级），
+`install.mjs` 只把 skill 存一份在 `.agents/skills/`（项目级）或 `~/.agents/skills/`（`--user` 用户级），
 其余宿主按「每个 skill 一条相对软链接」指回权威源，因此不会出现多份副本互相漂移。
 `.agents/skills` 是多个工具共同采纳的跨产品约定，能原生读的就不建链接，避免同名技能在列表里出现两次。
 
@@ -21,16 +21,16 @@
 | Qoder | `.qoder/skills/` | `~/.qoder-cn/skills/`（`--hosts qoder-cn`） | **建软链接** |
 | Trae / CodeBuddy / ZCode | `.trae/skills/`、`.codebuddy/skills/`、`.zcode/skills/` | `~/.codebuddy/skills/` 等 | **建软链接** |
 
-- 探测到多个宿主目录时，`install.sh` 会给**所有**需要链接的宿主建链接，不再只装第一个命中的。
+- 探测到多个宿主目录时，`install.mjs` 会给**所有**需要链接的宿主建链接，不再只装第一个命中的。
 - 目标位置已存在真实目录：内容一致就替换成链接；不一致先备份为 `<name>.bak-<时间戳>` 再替换，不静默覆盖手改内容。
 - 权威源里的 `SKILL.md` 被手改过：同样先备份成 `SKILL.md.bak-<时间戳>` 再更新，不静默覆盖。
 - 安装结束会打印 `installer v…` 与三个 skill 的实际版本，便于判断是否装到了旧版。
-- `--hosts` 全部无效、或「目标目录 + `--user`」同时给出时直接报错退出，不会打印成功。
+- `--hosts` 全部无效、或「目标目录 + `--user`」同时给出时，在任何写入之前就报错退出，不会打印成功。
 - 一个宿主目录都没探测到时，默认按 Claude Code 布局创建 `.claude/skills`（保持旧行为）。
-- Windows 建软链接需要开发者模式；失败时脚本自动回退为复制并打印警告，也可以显式 `--copy`。
-- 安装器与运行期的 `detect-commands.sh` 都是 bash 脚本：**纯 PowerShell / CMD 不支持**，
-  请用 Git Bash 或 WSL（命令见 README「Windows：需要 bash」一节）。
-- 想只装部分宿主：`--hosts claude,qoder`；想跨项目共享：`install.sh --user`。
+- Windows 建符号链接需要开发者模式或管理员权限；失败时 `install.mjs` 自动回退为复制并打印警告，也可以显式 `--copy`。
+- 安装器与所有 helper 都是 node 脚本：**Windows 用 PowerShell 直接 `node install.mjs` 就行**，
+  不需要 bash / Git Bash / WSL；`install.sh` 只是「找到并 exec install.mjs」的兼容壳，自身不含安装逻辑。
+- 想只装部分宿主：`--hosts claude,qoder`；想跨项目共享：`node install.mjs --user`。
 
 > 目录来源说明：Claude Code 不识别 `.agents/skills`（社区实测放进去不列出，改成
 > `.claude/skills/<name> → ../../.agents/skills/<name>` 这类**逐 skill** 软链接后会跟随）；
@@ -52,7 +52,7 @@
 
 ## Qoder MCP（跨机器）
 
-- `.qoder/skills` 由 `install.sh` 安装，Qoder 会自动加载；项目根 `.mcp.json` **不保证**自动注入新会话。
+- `.qoder/skills` 由 `install.mjs` 安装，Qoder 会自动加载；项目根 `.mcp.json` **不保证**自动注入新会话。
 - 在 Qoder「设置 → MCP」添加一个 stdio server（按实际路径替换）：
   ```json
   {
@@ -76,7 +76,7 @@
 
 ## Codex CLI 适配
 Codex 的项目级技能目录就是 `.agents/skills/`，也就是本项目的权威源位置，因此
-`install.sh` 装完即可直接被 Codex 发现，无需额外复制。若你的 Codex 版本较旧、
+`install.mjs` 装完即可直接被 Codex 发现，无需额外复制。若你的 Codex 版本较旧、
 或希望把指令常驻在会话开头，再走 `AGENTS.md`：
 
 1. 把 `examples/AGENTS.md` 复制到目标项目根并命名为 `AGENTS.md`，

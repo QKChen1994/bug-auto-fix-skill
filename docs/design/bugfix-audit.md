@@ -24,6 +24,14 @@
   `POST /bugs/{id}/assign` 把原因夹在 `comment` 里（指派给当前账号、`mailto` 留空，只多一条「已指派」动作，
   `status` 仍是 active），并受 `ZENTAO_ALLOW_RESOLVE_BUG` 写开关约束；`--no-resolve` / `--dry-run` 不写。
   同时删除备注与 resolve comment 里的「AI 自动修复」字样（resolve comment 改为「修复提交 <hash>」）。
+- 后续修正（安装统一到一个实现）：Windows 之所以要 Git Bash / WSL，根因是 `install.sh` 与运行期的
+  `detect-commands.sh` 都是 bash 脚本。现在安装逻辑整体搬到跨平台的 `scripts/install.mjs`（唯一实现），
+  `detect-commands.sh` 由 `detect-commands.mjs` 取代（17 类 fixture 与 bash 版逐条比对输出一致，并修正
+  「devDependencies 里有名为 test 的键就被当成测试脚本」的误判）；`install.sh` 退化为「找到 install.mjs →
+  exec node」的兼容壳，自身不含安装逻辑。回归网从 `smoke-test.sh`（18 个 bash 场景）迁移到
+  `scripts/test-install.mjs`（20 个 node 测试，含 mock HTTP 源、主源失败回退、所有源失败、bash 兼容入口委派）。
+  技能与文档同步：`bugfix-config` 优先 `node detect-commands.mjs`（旧 `.sh` 仅作缺失时的回退），
+  Windows 改为 PowerShell `node install.mjs` 原生支持；版本 1.7.1 / 1.5.0 / 1.2.2。
 - 关联文档：`README.md`、`docs/hosts.md`、`examples/AGENTS.md`
 
 ## 1. 背景与目标
@@ -184,7 +192,7 @@ limit: 50
 
 - 仓库内：`scripts/find-fixed-unresolved.mjs`。
 - 安装后：`.zentao-triage/bin/find-fixed-unresolved.mjs`。
-- `install.sh` 把它作为可选辅助脚本安装；下载失败不影响 skill 安装。
+- `install.mjs` 把它作为可选辅助脚本安装；下载失败不影响 skill 安装。
 - skill 优先使用 `.zentao-triage/bin/` 下的版本；不存在时尝试 `scripts/` 下的开发版本；都没有则走回退流程。
 
 ### 5.2 调用方式
@@ -277,7 +285,7 @@ git show -s --format=%cI <hash>
 ```
 
 - 回退模式在报告中标注「未使用 helper，逐条扫描」。
-- active 超过 100 条时，先提示回退模式可能较慢，建议重跑 `install.sh` 或缩小范围。
+- active 超过 100 条时，先提示回退模式可能较慢，建议重跑 `install.mjs` 或缩小范围。
 - helper 报「前缀非法 / 不是 git 仓库」时不要回退，直接停止并提示修复。
 - helper 因其他运行时错误失败时，回退逐条扫描，并在报告中标注回退原因。
 
@@ -474,7 +482,7 @@ active 但没有任何 commit 命中前缀。报告只列 id 列表和数量，�
 
 ### 安装与静态校验
 
-- `smoke-test.sh` 覆盖 `.claude` / `.cursor` / tarball / 逐文件 / `bash -c` 场景，断言 helper 存在；三个 skill 的断言保持。
+- `scripts/test-install.mjs` 覆盖 `.claude` / `.cursor` / mock 源逐文件下载 / 主源失败回退 / 所有源失败 / bash 兼容入口等场景，断言文件系统效果与退出码（取代原 `smoke-test.sh`）。
 - `validate.sh` 覆盖三个命令名、`--audit`、多 id 示例、默认当前账号、全部候选、frontmatter、gitignore、旧 MCP 安装方式。
 - CI 在 macOS / Ubuntu / Windows 跑 helper 测试、shellcheck、`node --check`、smoke、validate。
 

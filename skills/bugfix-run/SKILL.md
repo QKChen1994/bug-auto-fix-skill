@@ -1,6 +1,6 @@
 ---
 name: bugfix-run
-version: 1.7.0
+version: 1.7.1
 description: 禅道 Bug 修复主入口——默认全自动且只处理当前账号的 active bug，无配置也能直接开始；支持按范围批量、从列表选择、指定多条 id、只读审计已修复未结项（--audit）、--noauto 逐条确认；只 resolve fixed 并指派回创建人，判不出预期的 bug 不改状态、把原因写进禅道备注；支持 --my / --dry-run / --no-resolve。
 ---
 
@@ -87,9 +87,9 @@ description: 禅道 Bug 修复主入口——默认全自动且只处理当前�
 
 - 写日志/报告前确保 `.zentao-triage/` 已被 `.gitignore` 忽略；没有就创建/追加。
 - 审计报告、临时文件、运行日志都只写这里，不提交。
-- 辅助脚本（`zentao-users.mjs`、`zentao-remark.mjs`、`detect-commands.sh`、`find-fixed-unresolved.mjs`）按
+- 辅助脚本（`zentao-users.mjs`、`zentao-remark.mjs`、`detect-commands.mjs`、`find-fixed-unresolved.mjs`）按
   `.zentao-triage/bin/<name>` → `scripts/<name>` → `$HOME/.zentao-triage/bin/<name>`
-  （`install.sh --user` 的用户级安装）顺序查找；三处都没有才走对应章节写明的回退方式。
+  （`install.mjs --user` 的用户级安装）顺序查找；三处都没有才走对应章节写明的回退方式。
 
 ### 1.5 分支：审计 vs 修复
 
@@ -339,7 +339,7 @@ git rev-list --parents -n 1 <hash>
 git show -s --format=%cI <hash>
 ```
 
-- 回退模式下 active 超过 100 条 → 先提示可能较慢，建议重跑 `install.sh` 或缩小范围。
+- 回退模式下 active 超过 100 条 → 先提示可能较慢，建议重跑 `install.mjs` 或缩小范围。
 
 ### 4.3 确认状态与分类
 

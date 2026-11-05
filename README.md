@@ -25,8 +25,8 @@ AI 编码 agent skill，支持 CodeBuddy / Claude Code / Cursor / Windsurf / Cod
 ## 快速开始
 
 ```bash
-# 1. 安装 skill，然后重启/刷新 AI 客户端
-bash scripts/install.sh /path/to/your/project
+# 1. 安装 skill（Windows / macOS / Linux 一致，需要 Node.js），然后重启/刷新 AI 客户端
+node scripts/install.mjs /path/to/your/project
 
 # 2. 直接运行主入口
 /bugfix-run
@@ -45,8 +45,8 @@ bash scripts/install.sh /path/to/your/project
 
 ## 安装
 
-运行环境需要 **bash + git + curl**（Windows 请用 Git Bash 或 WSL，见下文「Windows：需要 bash」），
-三个 helper 脚本另需 Node.js。
+运行环境需要 **Node.js 18+**（安装器与三个 helper 都是跨平台 node 脚本）和 **git**；
+Windows / macOS / Linux 用同一套命令。可选的 bash 兼容入口另需 bash + curl，见下文。
 
 本 skill 是一组 Markdown 运行手册。安装采用**唯一权威源 + 软链接**：三个 `SKILL.md` 只存一份，
 放在项目的 `.agents/skills/`（跨工具约定，Codex / Copilot / Gemini / Cursor / DeepSeek Harness 原生读取）；
@@ -58,56 +58,58 @@ bash scripts/install.sh /path/to/your/project
 ```bash
 git clone https://github.com/QKChen1994/bug-auto-fix-skill.git
 # 写入权威源并给宿主建链接（自动探测 Claude/Qoder/CodeBuddy/Trae/ZCode 等目录）
-bash bug-auto-fix-skill/scripts/install.sh /path/to/your/project
+node bug-auto-fix-skill/scripts/install.mjs /path/to/your/project
 ```
 
-### 方式 B：一行 curl 安装（无需克隆）
+### 方式 B：一行安装（无需克隆）
 
 ```bash
-# cd 进你的项目根目录后执行，默认装到当前目录
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.sh)"
-
-# 或显式指定目标项目路径
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.sh)" _ /path/to/your/project
-
-# 国内网络若 raw.githubusercontent.com 被墙/超时，改用 jsDelivr 镜像取脚本：
-bash -c "$(curl -fsSL https://cdn.jsdelivr.net/gh/QKChen1994/bug-auto-fix-skill@main/scripts/install.sh)"
+# 三平台一致：取 install.mjs，再交给 node（在项目根目录执行，或显式给目标路径）
+curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.mjs -o install.mjs
+node install.mjs                        # 装到当前目录
+node install.mjs /path/to/your/project  # 或指定项目
 ```
 
-脚本逐文件拉取三个 `SKILL.md` 时按 **GitHub raw → jsDelivr → tarball** 的顺序回退：
+```powershell
+# Windows PowerShell：同样只需要 Node.js
+iwr -useb https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.mjs -o install.mjs
+node install.mjs .\path\to\project
+```
+
+> 老文档里的 `bash -c "$(curl … install.sh)"` 仍然可用：`install.sh` 现在只是一个兼容壳，
+> 找到（必要时下载）`install.mjs` 后交给 node 执行；没有 Node.js 时会明确报错，不会静默半装。
+
+安装器逐文件拉取三个 `SKILL.md` 时按 **GitHub raw → jsDelivr → tarball** 的顺序回退：
 raw 没有 CDN 缓存，能避免 `@main` 的陈旧缓存让你装到旧版；jsDelivr 只作国内兜底，tarball 是最后一道保险。
 装完会打印 `installer v…` 与三个 skill 的实际版本，便于确认装到的是不是最新版。
 
-> jsDelivr 对 `@main` 的缓存可能保留旧内容（实测出现过落后多个版本）。如果你是用上面那条 jsDelivr 命令跑的，
-> 注意安装器本身也可能来自缓存：输出里的 `installer v…` 明显偏旧，或 skill 版本不如 GitHub 上的新，
-> 请改用 raw 那条命令（或 `git clone` 后本地安装）；想彻底避开缓存就用下面的「锁定版本安装」。
+> jsDelivr 对 `@main` 的缓存可能保留旧内容（实测出现过落后多个版本）。以输出里的
+> `installer v…` 和三个 skill 版本为准；需要可复现就用下面的「锁定版本安装」（tag 不可变）。
 
 ### 锁定版本安装（可复现）
 
 ```bash
-# 脚本与技能都取 v1.0.0：tag 不可变，不受 @main 缓存影响
-BUG_AUTO_FIX_BRANCH=v1.0.0 \
-  bash -c "$(curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/v1.0.0/scripts/install.sh)"
+curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.mjs -o install.mjs
+BUG_AUTO_FIX_BRANCH=v1.1.0 node install.mjs   # 换成你想装的 tag
 ```
 
-`BUG_AUTO_FIX_BRANCH` 同时决定脚本内部拉取 `SKILL.md` 与辅助脚本的分支名，填 tag 即整包装同一版本。
+`BUG_AUTO_FIX_BRANCH` 同时决定安装器内部拉取 `SKILL.md` 与辅助脚本的分支名，填 tag 即整包装同一版本。
 若逐文件拉取失败走到 tarball 兜底，tag 需要显式指定：
-`BUG_AUTO_FIX_TARBALL=https://github.com/QKChen1994/bug-auto-fix-skill/archive/refs/tags/v1.0.0.tar.gz`。
+`BUG_AUTO_FIX_TARBALL=https://github.com/QKChen1994/bug-auto-fix-skill/archive/refs/tags/<tag>.tar.gz`。
 
-> ⚠️ **安全提示**：`curl | bash` 会直接执行远端脚本，请确认来源可信。想先审查，可先 `git clone` 查看 `scripts/install.sh` 源码再决定是否运行。
+> ⚠️ **安全提示**：下载脚本再交给 `node`/`bash` 执行，等于运行远端代码，请确认来源可信。想先审查，
+> 可先 `git clone` 查看 `scripts/install.mjs` 源码再决定是否运行。
 >
 > 使用 **fork / 镜像仓库**时，可用环境变量指定自己的源（覆盖默认仓库与分支）：
 > ```bash
 > # 方式 1：只改 owner/repo（分支默认 main，可用 BUG_AUTO_FIX_BRANCH 指定）
-> BUG_AUTO_FIX_REPO=yourfork/bug-auto-fix-skill \
->   bash -c "$(curl -fsSL https://raw.githubusercontent.com/yourfork/bug-auto-fix-skill/main/scripts/install.sh)"
+> BUG_AUTO_FIX_REPO=yourfork/bug-auto-fix-skill node install.mjs
 >
 > # 方式 2：直接给完整 tarball 地址（优先级最高）
-> BUG_AUTO_FIX_TARBALL=https://github.com/yourfork/bug-auto-fix-skill/archive/refs/heads/main.tar.gz \
->   bash -c "$(curl -fsSL https://raw.githubusercontent.com/yourfork/bug-auto-fix-skill/main/scripts/install.sh)"
+> BUG_AUTO_FIX_TARBALL=https://github.com/yourfork/bug-auto-fix-skill/archive/refs/heads/main.tar.gz node install.mjs
 > ```
 
-`install.sh` 会做这些事：
+`install.mjs` 会做这些事：
 
 - 把三个 skill 写入权威源 `<项目根>/.agents/skills/<name>/SKILL.md`，并打印三个 skill 的实际版本；
 - 探测项目里存在的宿主目录（`.claude` / `.qoder` / `.qoder-cn` / `.trae` / `.codebuddy` / `.zcode` /
@@ -116,59 +118,56 @@ BUG_AUTO_FIX_BRANCH=v1.0.0 \
   其中 `opencode` / `openclaw` 只是假定原生读取、未实测，若技能不出现请用 `--hosts opencode --copy` 显式安装；
 - 目标位置已有真实目录时：内容一致就替换成链接；内容不同先备份成 `<name>.bak-<时间戳>` 再替换，不会静默吞掉你手改的内容；
 - 权威源里的 `SKILL.md` 被你手改过时同样先备份成 `SKILL.md.bak-<时间戳>` 再更新，不会静默覆盖；
-- 把可选辅助脚本安装到 `.zentao-triage/bin/`（test/build 探测、指派人列表、备注回写、审计 helper；下载失败不影响安装）；
+- 把可选辅助脚本安装到 `.zentao-triage/bin/`（test/build 探测、指派人列表、备注回写、审计 helper，全部 node 实现；下载失败不影响安装）；
 - 确保目标项目 `.gitignore` 忽略 `.zentao-triage/` 与 `.mcp.json`（没有 `.gitignore` 则创建），避免本地配置和禅道凭据进版本库；
-- `--hosts` 全部无效、或「目标目录 + `--user`」同时给出时直接报错退出，不会假装成功。
+- `--hosts` 全部无效、或「目标目录 + `--user`」同时给出时直接报错退出（在任何写入之前），不会假装成功。
 
 ### 安装选项
 
 ```bash
 # 跨项目共享一份：装到 ~/.agents/skills，只给已存在的宿主目录建链接
-bash scripts/install.sh --user
+node scripts/install.mjs --user
 
 # 用复制代替软链接（Windows 未开开发者模式，或想单独排查问题时）
-bash scripts/install.sh /path/to/project --copy
+node scripts/install.mjs /path/to/project --copy
 
 # 只给指定宿主建链接
-bash scripts/install.sh /path/to/project --hosts claude,qoder
+node scripts/install.mjs /path/to/project --hosts claude,qoder
 ```
 
-### Windows：需要 bash（Git Bash 或 WSL）
+### Windows：只需要 Node.js
 
-下载这一步是通用的——Windows 10 1803+ 自带 `curl.exe`。**但纯 PowerShell / CMD 不支持安装**，原因有三条：
+安装器与三个 helper 都是跨平台 node 脚本，Windows 不再需要 bash：
 
-1. `install.sh` 依赖 bash 语义：`set -euo pipefail`（任一步失败即退出）、函数与局部变量、
-   `[ -L ]` 判断符号链接、`diff -rq` / `cmp` 比对内容、`tail -c 1` 处理 `.gitignore` 末尾换行。
-   batch 里没有对应写法（`mklink` 还是 cmd 内置命令，PowerShell 不能直接调用），
-   改写等于维护第二份实现，必然与 `install.sh` 漂移；
-2. Windows 建符号链接需要开发者模式或管理员权限；`install.sh` 的做法是**建链接失败就自动回退为复制并打印警告**
-   （也可以直接加 `--copy`）；
-3. **运行期同样需要 bash**：`/bugfix-config` 会执行 `.zentao-triage/bin/detect-commands.sh` 探测 test/build 命令，
-   它也是 bash 脚本。只把安装器换成 bat 并不能让 Windows 在无 bash 环境下完整工作。
-
-```bash
-# A) Git Bash（推荐：装 Git for Windows 就自带 bash 与 curl）
-curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.sh -o install.sh
-bash install.sh /c/path/to/project
-bash install.sh /c/path/to/project --copy    # 不想开开发者模式，直接用复制安装
-
-# B) WSL（Ubuntu 等）里就是标准 Linux 用法
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.sh)"
+```powershell
+# PowerShell（Windows 10/11 自带）
+iwr -useb https://raw.githubusercontent.com/QKChen1994/bug-auto-fix-skill/main/scripts/install.mjs -o install.mjs
+node install.mjs .\path\to\project
+node install.mjs .\path\to\project --copy    # 不想开开发者模式时用复制
 ```
 
-Git Bash 里 Windows 路径写成 `/c/...` 或 `~/...`；WSL 里项目若放在 `/mnt/c/...`（Windows 盘），
-跨文件系统建软链接可能失败，请加 `--copy`。
+两个平台相关点：
 
-装完自查版本（应与 Releases 页面上标注的三个 skill 版本一致）：
+1. **符号链接**：Windows 建符号链接需要开发者模式或管理员权限。`install.mjs` 的做法是
+   **建链接失败就自动回退为复制并打印警告**，也可以直接加 `--copy`；
+2. **路径差异**：Windows 临时目录可能是 8.3 短路径（如 `C:\Users\RUNNER~1\…`），审计 helper 统一用
+   `fs.realpathSync.native` 展开成长路径，报告里不会混进短路径。
 
-```bash
-grep -m1 '^version:' /c/path/to/project/.agents/skills/bugfix-run/SKILL.md
+仍想用 bash（Git Bash 或 WSL）的话，旧入口照旧可用：`bash scripts/install.sh /path/to/project`。
+它只是找到（必要时下载）`install.mjs` 再 `exec node`，自身不含安装逻辑；没有 Node.js 时明确报错退出。
+
+装完自查版本（应与 Releases 页面标注的三个 skill 版本一致）：
+
+```powershell
+Select-String -Path .\path\to\project\.agents\skills\bugfix-run\SKILL.md -Pattern '^version:'
 ```
 
-> 已验证范围：CI 在 `windows-latest` 用 Git 的 bash 跑的是**同一份** `install.sh`（含 18 个安装冒烟场景）；
-> 真实 https 下载在 Windows 上未实测（CI 的远程场景用本地 `file://` 源）。
-> 若确实需要「无 bash 的原生 Windows 安装」，正解是把安装器改写成跨平台的 `install.mjs`（Node 已是依赖），
-> 而不是新增一份 batch/PowerShell 脚本。
+> 为什么不做一份 `.bat` / `.ps1` 安装器：那等于维护第二份实现——宿主探测、内容比对、冲突备份、
+> 软链接回退、下载源回退都要重写一遍，两套逻辑必然漂移（这也正是本项目「权威源只存一份」的理由）。
+> 历史上 `install.sh` 是唯一实现，Windows 因此需要 Git Bash；现在统一到一个 node 文件，三平台一份代码、一套测试。
+>
+> 已验证范围：三平台 CI 跑同一套 node 测试（含逐文件下载的本地 mock 源与主源失败回退）；
+> 真实 https 下载在 Windows 上仍未实测，CI 的下载场景用的是本地 mock 服务。
 
 > `.agents/skills/` 建议随业务项目提交，团队成员就能共享同一份 skill；
 > 本仓库把它加进了 `.gitignore`，因为这里就是 skill 的源，自装只会产生本地副本。
@@ -252,7 +251,7 @@ grep -m1 '^version:' /c/path/to/project/.agents/skills/bugfix-run/SKILL.md
 - **用户配置独立存储且校验**：`bugfix-config` 写到 `<项目根>/.zentao-triage/user-config.md`（YAML，gitignore）。先用 `zentao_list_scopes` 拉取产品/项目/执行列表，以 `名称(id=...)` 选项让用户选，再校验 `scope`、`scope_id`、`limit`、`commit_prefix` 等字段。支持 `product` / `project` / `execution` 三种维度；`project` / `execution` 要求 Bug 已关联到对应范围。
 - **候选必须展示全量**：scope 和指派人候选都来自禅道实际列表；默认项/推荐项只能在标签中标注，不能只给默认项和推荐项，也不能隐藏其他候选。宿主单次选项数有限时分批展示或按关键词过滤。
 - **默认只处理当前账号，且以 MCP 实际身份为准**：`assigned_to` 默认当前登录账号，账号取自 `zentao_list_my_bugs` 的 `assignedTo`（会话真正连的那个禅道），`.zentao-triage/bin/zentao-users.mjs` 只负责补姓名和 `--keyword` 搜索，并输出 `configPath` 说明它读了哪个配置文件。两边不一致时会把两个账号和配置文件路径一起摆出来让你确认，不会静默写错账号。只有明确选择「全部指派人」时才留空，并二次确认。定时巡检/自动任务同样默认当前账号。
-- **命令与测试条件有建议值**：`test_cmd` / `build_cmd` 优先运行 `.zentao-triage/bin/detect-commands.sh`，扫描 `package.json`、`Makefile`、`go.mod`、`pom.xml`、`build.gradle`、`composer.json`、`Gemfile`、`pyproject.toml`、`Cargo.toml` 及 monorepo 配置给出建议，用户可自定义或留空。
+- **命令与测试条件有建议值**：`test_cmd` / `build_cmd` 优先运行 `node .zentao-triage/bin/detect-commands.mjs`，扫描 `package.json`、`Makefile`、`go.mod`、`pom.xml`、`build.gradle`、`composer.json`、`Gemfile`、`pyproject.toml`、`Cargo.toml` 及 monorepo 配置给出建议，用户可自定义或留空。
 - **指派人可从禅道选择**：`.zentao-triage/bin/zentao-users.mjs` 默认只输出 `currentAccount` / `currentUser` 和 `totalUsers`，不会把整份名单灌进上下文；换人用 `--keyword <账号或姓名子串>` 过滤，确认要看全部才用 `--list`。脚本不可用时用 `zentao_list_my_bugs` 的 `assignedTo` 推断当前账号，仍无法确定就询问用户，不回退到全量。
 - **默认全自动，不弹模式确认**：`/bugfix-run` 直接按「修复 → 验证 → commit → resolve → 指派回创建人」跑完，不再询问执行模式；需要逐条把关时加 `--noauto`。唯一会打破全自动的验证类情况是 `test_cmd` 和 `build_cmd` 都为空（没有任何验证手段），此时自动降级为逐条确认并在日志说明，避免无验证谎称修复。
 - **AI 只判定 fixed，不阻塞队列**：只有确实改了代码并通过验证的 bug 才会 commit + resolve(fixed)。判不出预期、疑似有意为之的 bug 一律不改代码、**不改禅道状态**，也不会卡住后续 bug——它们进「未处理清单」，结尾统一汇报。AI 不主动提出 `bydesign` / `tostory` / `duplicate` / `notrepro` 这类结论（没有需求文档和原型时，「代码和代码一致」不构成设计如此），只有用户明确指定 resolution 时才代为执行。
@@ -293,17 +292,18 @@ bugAutoFixSkill/
 │   ├── AGENTS.md           # Codex 等宿主的注入说明
 │   └── user-config.example.md
 ├── scripts/
-│   ├── install.sh          # 探测宿主、复制 skill、维护 gitignore
-│   ├── detect-commands.sh  # 探测 test/build 命令建议
-│   ├── test-detect-commands.sh
+│   ├── install.mjs         # 跨平台安装器（唯一实现：权威源、软链接、备份、下载回退）
+│   ├── install.sh          # bash 兼容入口：找到 install.mjs 后 exec node
+│   ├── test-install.mjs
+│   ├── detect-commands.mjs # 探测 test/build 命令建议
+│   ├── test-detect-commands.mjs
 │   ├── zentao-users.mjs    # 读取禅道用户列表并标记当前账号
 │   ├── test-zentao-users.mjs
 │   ├── zentao-remark.mjs   # 通过 assign 夹带 comment 写备注（不改 status）
 │   ├── test-zentao-remark.mjs
 │   ├── find-fixed-unresolved.mjs      # 审计：按 commit 前缀匹配 bug
 │   ├── test-find-fixed-unresolved.mjs
-│   ├── smoke-test.sh       # 安装脚本冒烟测试
-│   └── validate.sh         # SKILL.md 与文档一致性校验
+│   └── validate.sh         # SKILL.md 与文档一致性校验（CI / 开发用）
 └── docs/
     ├── hosts.md            # 各宿主安装说明
     └── design/

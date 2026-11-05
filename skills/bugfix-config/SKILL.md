@@ -1,6 +1,6 @@
 ---
 name: bugfix-config
-version: 1.4.0
+version: 1.5.0
 description: 精细配置、查看或重置禅道筛选与校验条件——从禅道拉取 scope 列表供选择，配置 assigned_to（默认当前账号）、test_cmd/build_cmd/commit_prefix/limit，写入 .zentao-triage/user-config.md（按 YAML 解析，不提交）；支持 --show 与 --reset。
 ---
 
@@ -70,7 +70,7 @@ limit: 50
    - 创建 `.zentao-triage/` 目录。
    - 确保 `.gitignore` 忽略 `.zentao-triage/`；没有 `.gitignore` 就创建。
    - 辅助脚本按 `.zentao-triage/bin/<name>` → `scripts/<name>` → `$HOME/.zentao-triage/bin/<name>`
-     （`install.sh --user` 的用户级安装）顺序查找；三处都没有就走下面写明的回退方式。
+     （`install.mjs --user` 的用户级安装）顺序查找；三处都没有就走下面写明的回退方式。
 
    **4.1 选择维度 `scope`**：用宿主的选项式提问让用户选 product / project / execution；
    说明 `project` / `execution` 只会看到已关联到该范围的 Bug。
@@ -119,9 +119,9 @@ limit: 50
    - 已有配置时展示当前值；若为空，或配置的账号与 MCP 实际账号不一致，都要重新确认，不要直接沿用。
 
    **4.4 自动探测 `test_cmd` / `build_cmd`（可选）**：
-   - 若 `.zentao-triage/bin/detect-commands.sh` 存在，先运行：
-     `bash .zentao-triage/bin/detect-commands.sh`
-     读取输出的 `stack` / `test_cmd` / `build_cmd` 作为建议；没有输出或脚本不存在时按下面规则扫描。
+   - 优先运行 `node .zentao-triage/bin/detect-commands.mjs`（跨平台）；它不存在而旧的
+     `detect-commands.sh` 还在时，退回 `bash .zentao-triage/bin/detect-commands.sh`。
+     读取输出的 `stack` / `test_cmd` / `build_cmd` 作为建议；没有输出或两个脚本都不存在时按下面规则扫描。
    - 扫描仓库根常见入口，给用户选项（可自定义/留空，只建议不执行）：
      - `package.json` → `npm test` / `npm run build`；有 pnpm/yarn lockfile 时用对应命令；
      - `Makefile` → `make test` / `make build`（存在对应 target 时）；
